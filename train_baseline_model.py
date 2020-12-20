@@ -11,12 +11,11 @@ import torch
 
 
 def train_baseline():
-    baseline_model_bert.train()
     best_accuracy = 0.0
     for epoch in range(Config.epochs):
         logging(f'epoch {epoch} start')
         logging(f'epoch {epoch} train baseline_model')
-
+        baseline_model_bert.train()
         loss_mean = 0.0
         for x, x_mask, y in tqdm(train_data):
             x, x_mask, y = x.to(Config.train_device), x_mask.to(
@@ -78,7 +77,7 @@ if __name__ == "__main__":
 
     baseline_model_bert = Baseline_Model_Bert().to(Config.train_device)
     logging('Training Baseline Model...')
-    criterion_baseline_model = nn.CrossEntropyLoss()
+    criterion_baseline_model = nn.CrossEntropyLoss().to(Config.train_device)
     optimizer_baseline_model = optim.Adam(baseline_model_bert.parameters(),
-                                          lr=5e-5)
+                                          lr=Config.baseline_train_rate)
     train_baseline()

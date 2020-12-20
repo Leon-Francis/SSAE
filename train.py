@@ -1,135 +1,88 @@
 import os
 import time
-from model import MLP_D, MLP_G, MLP_I, Seq2SeqAE, JSDistance
-from data import MyDataset
+from model import Seq2Seq_bert
+from data import Seq2Seq_DataSet
 from tools import logging
 from config import Config
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from vocab import Vocab
 import torch
 
-print('Using cuda device gpu: ' + Config.config_device.type)
 
-Config.outf = str(int(time.time()))
-cur_dir = Config.outputdir + '/' + Config.outf
-# make output directory if it doesn't already exist
-if not os.path.isdir(Config.output_dir):
-    os.makedirs(Config.output_dir)
-if not os.path.isdir(cur_dir):
-    os.makedirs(cur_dir)
-    os.makedirs(cur_dir + '/models')
-print('Saving into directory' + cur_dir)
-
-if Config.load_pretrain:
-    print("Loading pretrained models from " + cur_dir)
-else:
-    print("Creating new experiment at " + cur_dir)
-
-train_dataset_orig = MyDataset(Config.train_data_path)
-test_dataset_orig = MyDataset(Config.test_data_path)
-vocab = Vocab(origin_data_tokens=train_dataset_orig.data_tokens,
-              is_using_pretrained=False,
-              vocab_limit_size=Config.vocab_limit_size)
-train_dataset_orig.token2idx(vocab, Config.maxlen)
-test_dataset_orig.token2idx(vocab, Config.maxlen)
-train_data = DataLoader(train_dataset_orig,
-                        batch_size=Config.batch_size,
-                        shuffle=False)
-test_data = DataLoader(test_dataset_orig,
-                       batch_size=Config.batch_size,
-                       shuffle=False)
-
-gan_gen = MLP_G(300, 300).to(Config.train_device)
-gan_disc = MLP_D(300, 1).to(Config.train_device)
-inverter = MLP_I(300, 100).to(Config.train_device)
-autoencoder = Seq2SeqAE(len(vocab), Config.maxlen, 100, 300).to(Config.train_device)
-
-print(autoencoder)
-print(inverter)
-print(gan_gen)
-print(gan_disc)
-
-optimizer_ae = optim.Adam(autoencoder.parameters(), lr=3e-4)
-optimizer_inv = optim.Adam(inverter.parameters(), lr=1e-5, betas=(0.9, 0.999))
-optimizer_gan_g = optim.Adam(gan_gen.parameters(), lr=5e-5, betas=(0.9, 0.999))
-optimizer_gan_d = optim.Adam(gan_disc.parameters(),
-                             lr=1e-5,
-                             betas=(0.9, 0.999))
-
-criterion_ce = nn.CrossEntropyLoss().to(Config.train_device)
-criterion_mse = nn.MSELoss().to(Config.train_device)
-criterion_js = JSDistance().to(Config.train_device)
-
-print('Training...')
-
-
-def train():
-    # torch.autograd.set_detect_anomaly(True)
+def train_Seq2Seq(train_data, test_data, model, criterion, optimizer):
+    best_accuracy = 0.0
     for epoch in range(Config.epochs):
         logging(f'epoch {epoch} start')
-        logging(f'epoch {epoch} train autoencoder')
-
+        logging(f'epoch {epoch} train Seq2Seq model')
+        model.train()
         loss_mean = 0.0
-
-        for x, y in tqdm(train_data):
-            x, y = x.to(Config.train_device), y.to(Config.train_device)
-            logits = autoencoder(x, is_noise=True)
-            logits = logits.reshape(x.size()[0] * x.size()[1], -1)
-            optimizer_ae.zero_grad()
-            loss = criterion_ce(logits, x.view(-1))
+        for x, x_mask, y in tqdm(train_data):
+            x, x_mask, y = x.to(Config.train_device), x_mask.to(
+                Config.train_device), y.to(Config.train_device)
+            logits = model(x, x_mask, is_noise=True)
+            optimizer.zero_grad()
+            loss = criterion(logits, y)
             loss_mean += loss.item()
             loss.backward()
-            optimizer_ae.step()
+            optimizer.step()
+
         loss_mean /= len(train_data)
-        print(f"epoch {epoch} loss is {loss_mean}")
+        print(f"epoch {epoch} train_loss is {loss_mean}")
+        eval_accuracy = eval_Seq2Seq(test_data, model)
+        print(f"epoch {epoch} test_acc is {eval_accuracy}")
+        if best_accuracy < eval_accuracy:
+            best_accuracy = eval_accuracy
+            logging('Saveing Seq2Seq models...')
+            torch.save(model.state_dict(),
+                       cur_dir + '/models/Seq2Seq_model_bert.pt')
         if loss_mean < 0.1:
             break
 
+
+def eval_Seq2Seq(test_data, model):
     with torch.no_grad():
-        autoencoder.eval()
-        batch_generated = []
-        for x, y in test_data:
-            x, y = x.to(Config.train_device), y.to(Config.train_device)
-            logits = autoencoder(x, is_noise=False)
-            res = torch.argmax(logits, dim=-1)
-            generated = [[0 for _ in range(Config.maxlen)] for _ in range(Config.batch_size)]
-            for i, sample in enumerate(res):
-                for j, idx in enumerate(sample):
-                    generated[i][j] = vocab.get_word(idx.item())
-                generated[i] = ' '.join(generated[i])
-            batch_generated += generated
-
-        for i in range(len(test_data)):
-            logging(str(i))
-            print(test_dataset_orig.datas[i])
-            print()
-            print(batch_generated[i])
-
-
-def train_ae(x, y, total_loss_ae, autoencoder, optimizer_ae, criterion_ce):
-    autoencoder.train()
-    optimizer_ae.zero_grad()
-
-    flattened_y = y.view(-1)
-    mask = flattened_y.gt(0)
-    masked_y = flattened_y.masked_select(mask)
-    logits_mask = mask.unsqueeze(1).expand(mask.size(0), Config.vocab_limit_size)
-
-    logits = autoencoder(x, is_noise=True)
-
-    flattened_logits = logits.view(-1, Config.vocab_limit_size)
-
-    masked_logits = flattened_logits.masked_select(logits_mask).view(-1, Config.vocab_limit_size)
-    loss = criterion_ce(masked_logits, masked_y)
-    loss.backward()
-
-    torch.nn.utils.clip_grad_norm_(autoencoder.parameters(), 1)
-    optimizer_ae.step()
-
-    total_loss_ae += loss.data
+        model.eval()
+        acc_sum = 0
+        n = 0
+        for x, x_mask, y in test_data:
+            x, x_mask, y = x.to(Config.train_device), x_mask.to(
+                Config.train_device), y.to(Config.train_device)
+            logits = model(x, x_mask, is_noise=False)
+            acc_sum += (logits.argmax(dim=1) == y).float().sum().item()
+            n += y.shape[0]
+        return acc_sum / n
 
 
 if __name__ == '__main__':
-    train()
+    logging('Using cuda device gpu: ' + Config.train_device.type)
+    cur_dir = Config.output_dir + '/Seq2Seq_model/' + str(int(time.time()))
+    # make output directory if it doesn't already exist
+    if not os.path.isdir(Config.output_dir + '/Seq2Seq_model'):
+        os.makedirs(Config.output_dir + '/Seq2Seq_model')
+    if not os.path.isdir(cur_dir):
+        os.makedirs(cur_dir)
+        os.makedirs(cur_dir + '/models')
+    logging('Saving into directory' + cur_dir)
+
+    train_dataset_orig = Seq2Seq_DataSet(Config.train_data_path)
+    test_dataset_orig = Seq2Seq_DataSet(Config.test_data_path)
+
+    train_data = DataLoader(train_dataset_orig,
+                            batch_size=Config.batch_size,
+                            shuffle=True,
+                            num_workers=4)
+    test_data = DataLoader(test_dataset_orig,
+                           batch_size=Config.batch_size,
+                           shuffle=False,
+                           num_workers=4)
+
+    Seq2Seq_model_bert = Seq2Seq_bert(embedding_size=Config.embedding_size,
+                                      hidden_size=Config.hidden_size).to(
+                                          Config.train_device)
+    logging('Training Seq2Seq Model...')
+    criterion_Seq2Seq_model = nn.CrossEntropyLoss().to(Config.train_device)
+    optimizer_Seq2Seq_model = optim.SGD(Seq2Seq_model_bert.parameters(),
+                                        lr=Config.Seq2Seq_train_rate)
+    train_Seq2Seq(train_data, test_data, Seq2Seq_model_bert,
+                  criterion_Seq2Seq_model, optimizer_Seq2Seq_model)

@@ -21,7 +21,7 @@ class Baseline_Dataset(Dataset):
     def data2tokens(self):
         logging(f'{self.path} in data2tokens')
         for sen in tqdm(self.datas):
-            tokens = self.tokenizer.tokenize(sen)[:Config.sen_size-2]
+            tokens = self.tokenizer.tokenize(sen)[:Config.sen_size - 2]
             self.data_tokens.append(['CLS'] + tokens + ['SEP'])
 
     def token2idx(self):
@@ -65,14 +65,13 @@ class Seq2Seq_DataSet(Dataset):
         self.data_mask = []
         self.data2tokens()
         self.token2idx()
+        self.transfor()
 
     def data2tokens(self):
         logging(f'{self.path} in data2tokens')
         for sen in tqdm(self.datas):
-            self.data_tokens.append(
-                self.tokenizer.tokenize(sen + ' [SEP]'))
-            self.label_tokens.append(
-                self.tokenizer.tokenize('[CLS] ' + sen))
+            self.data_tokens.append(self.tokenizer.tokenize(sen + ' [SEP]'))
+            self.label_tokens.append(self.tokenizer.tokenize('[CLS] ' + sen))
 
     def token2idx(self):
         logging(f'{self.path} in token2idx')
@@ -89,9 +88,13 @@ class Seq2Seq_DataSet(Dataset):
             self.label_idx[i] += [0] * (max_len - len(self.label_idx[i]))
             self.data_mask[i] += [0] * (max_len - len(self.data_mask[i]))
 
+    def transfor(self):
+        self.data_idx = torch.tensor(self.data_idx)
+        self.data_mask = torch.tensor(self.data_mask)
+        self.label_idx = torch.tensor(self.label_idx)
+
     def __getitem__(self, item):
-        return torch.tensor(self.data_idx[item]), torch.tensor(
-            self.data_mask[item]), torch.tensor(self.label_idx[item])
+        return self.data_idx[item], self.data_mask[item], self.label_idx[item]
 
     def __len__(self):
         return len(self.datas)

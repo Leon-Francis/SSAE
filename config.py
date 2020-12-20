@@ -15,6 +15,12 @@ class Config:
     epochs = 20
     batch_size = 128
 
+    baseline_train_rate = 1e-4
+    Seq2Seq_train_rate = 1e-4
+
+    hidden_size = 768
+    embedding_size = 128
+    vocab_size = 30522
     sen_size = 70
 
 
