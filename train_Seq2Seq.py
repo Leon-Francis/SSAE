@@ -8,6 +8,7 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import torch
+from transformers import BertTokenizer
 
 
 def train_Seq2Seq(train_data, test_data, model, criterion, optimizer):
@@ -22,6 +23,8 @@ def train_Seq2Seq(train_data, test_data, model, criterion, optimizer):
                 Config.train_device), y.to(Config.train_device)
             logits = model(x, x_mask, is_noise=True)
             optimizer.zero_grad()
+            logits = logits.reshape(-1, logits.shape[-1])
+            y = y.reshape(-1)
             loss = criterion(logits, y)
             loss_mean += loss.item()
             loss.backward()
@@ -42,6 +45,7 @@ def train_Seq2Seq(train_data, test_data, model, criterion, optimizer):
 
 def eval_Seq2Seq(test_data, model):
     with torch.no_grad():
+        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
         model.eval()
         acc_sum = 0
         n = 0
@@ -49,8 +53,16 @@ def eval_Seq2Seq(test_data, model):
             x, x_mask, y = x.to(Config.train_device), x_mask.to(
                 Config.train_device), y.to(Config.train_device)
             logits = model(x, x_mask, is_noise=False)
-            acc_sum += (logits.argmax(dim=1) == y).float().sum().item()
+            outputs_idx = logits.argmax(dim=2)
+            acc_sum += (outputs_idx == y).float().sum().item()
             n += y.shape[0]
+            print('-' * Config.sen_size)
+            for i in range(outputs_idx.shape[0]):
+                print(' '.join(tokenizer.convert_ids_to_tokens(
+                    outputs_idx[i])))
+                print(' '.join(tokenizer.convert_ids_to_tokens(y[i])))
+
+            print('-' * Config.sen_size)
         return acc_sum / n
 
 
@@ -82,7 +94,7 @@ if __name__ == '__main__':
                                           Config.train_device)
     logging('Training Seq2Seq Model...')
     criterion_Seq2Seq_model = nn.CrossEntropyLoss().to(Config.train_device)
-    optimizer_Seq2Seq_model = optim.SGD(Seq2Seq_model_bert.parameters(),
-                                        lr=Config.Seq2Seq_train_rate)
+    optimizer_Seq2Seq_model = optim.Adam(Seq2Seq_model_bert.parameters(),
+                                         lr=Config.Seq2Seq_train_rate)
     train_Seq2Seq(train_data, test_data, Seq2Seq_model_bert,
                   criterion_Seq2Seq_model, optimizer_Seq2Seq_model)

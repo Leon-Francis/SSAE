@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from config import Config
-from transformers import BertModel, BertConfig
+from transformers import BertModel
 
 from transformers import BertTokenizer
 from torch import optim
@@ -21,9 +21,8 @@ class Seq2Seq_bert(nn.Module):
         self.num_layers = num_layers
         self.embedding_size = embedding_size
         self.noise_std = noise_std
-        self.bert_config = BertConfig.from_pretrained('bert-base-uncased')
         self.encoder = BertModel.from_pretrained('bert-base-uncased',
-                                                 config=self.bert_config)
+                                                 output_hidden_states=True)
         for param in self.encoder.parameters():
             param.requires_grad = False
         self.embedding_decoder = nn.Embedding(Config.vocab_size,
@@ -45,13 +44,11 @@ class Seq2Seq_bert(nn.Module):
         Returns:
             torch.tensor: hidden # [batch, seq_len, hidden_size]
         """
-        encoders, pooled = self.encoder(inputs,
-                                        attention_mask=inputs_mask,
-                                        output_hidden_states=True)
+        encoders, pooled, all_hidden_states = self.encoder(inputs, attention_mask=inputs_mask)
         # pooled [batch, hidden_size]
         # hidden [batch, seq_len, hidden_size]
-        hidden = encoders[-1]
-        state = encoders[0]
+        hidden = encoders
+        state = all_hidden_states[0]  # embedding
         if is_noise:
             gaussian_noise = torch.normal(mean=torch.zeros_like(hidden),
                                           std=self.noise_std)
@@ -349,10 +346,16 @@ if __name__ == "__main__":
     label_idx = label_idx.to(Config.train_device)
     logits = Seq2Seq_model_bert(data_idx, data_mask, is_noise=True)
     optimizer_baseline_model.zero_grad()
-    loss = criterion_baseline_model(logits, label_idx)
+    logits_flatten = logits.view(-1, logits.shape[-1])
+    label_idx_flatten = label_idx.view(-1)
+    loss = criterion_baseline_model(logits_flatten, label_idx_flatten)
     loss.backward()
     optimizer_baseline_model.step()
-    outputs_idx = logits.arguemax(dim=2)
-    outputs_tokens = tokenizer.convert_ids_to_tokens(outputs_idx)
-    print(outputs_tokens)
-    
+    outputs_idx = logits.argmax(dim=2)
+    outputs_tokens = []
+    for i in range(outputs_idx.shape[0]):
+        outputs_tokens.append(tokenizer.convert_ids_to_tokens(outputs_idx[i]))
+    for tokens in outputs_tokens:
+        print(' '.join(tokens))
+    print(' '.join(label_tokens))
+    print(f'loss is {loss}')
