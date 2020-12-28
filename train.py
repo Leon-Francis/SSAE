@@ -197,4 +197,3 @@ if __name__ == '__main__':
             for i in range(5):
                 train_inv((x, x_mask, y), Seq2Seq_model, gan_gen, inverter, optimizer_inv, criterion_ce, criterion_js, criterion_mse, gamma=0.5)
     
-            
