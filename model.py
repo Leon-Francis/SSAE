@@ -8,25 +8,17 @@ from torch import optim
 
 
 class Seq2Seq_bert(nn.Module):
-    def __init__(self,
-                 embedding_size,
-                 hidden_size,
-                 num_layers=1,
-                 dropout=0.0,
-                 noise_std=0.2):
+    def __init__(self, hidden_size, num_layers=1, dropout=0.0, noise_std=0.2):
         super(Seq2Seq_bert, self).__init__()
         self.seq_len = Config.sen_size
         self.dropout = dropout
         self.hidden_size = hidden_size
         self.num_layers = num_layers
-        self.embedding_size = embedding_size
         self.noise_std = noise_std
         self.encoder = BertModel.from_pretrained('bert-base-uncased',
                                                  output_hidden_states=True)
         for param in self.encoder.parameters():
             param.requires_grad = False
-        self.embedding_decoder = nn.Embedding(Config.vocab_size,
-                                              self.embedding_size)
         self.decoder = nn.LSTM(input_size=Config.hidden_size * 2,
                                hidden_size=self.hidden_size,
                                num_layers=self.num_layers,
@@ -44,7 +36,8 @@ class Seq2Seq_bert(nn.Module):
         Returns:
             torch.tensor: hidden # [batch, seq_len, hidden_size]
         """
-        encoders, pooled, all_hidden_states = self.encoder(inputs, attention_mask=inputs_mask)
+        encoders, pooled, all_hidden_states = self.encoder(
+            inputs, attention_mask=inputs_mask)
         # pooled [batch, hidden_size]
         # hidden [batch, seq_len, hidden_size]
         hidden = encoders
@@ -106,111 +99,6 @@ class Seq2Seq_bert(nn.Module):
             z_hat = inverter(hidden)
             c_hat = generator(z_hat)
             decoded = self.decode(c_hat, state)
-        return decoded
-
-
-class Seq2SeqAE(nn.Module):
-    def __init__(self,
-                 vocab_size,
-                 seq_len,
-                 embedding_size,
-                 hidden_size,
-                 num_layer=1,
-                 dropout=0.0,
-                 conv_kernels=[5, 5, 3],
-                 conv_strides=[1, 1, 1],
-                 conv_in_channels=[500, 700, 1000],
-                 noise_std=0.2):
-        super(Seq2SeqAE, self).__init__()
-        self.noise_std = noise_std
-        self.vocab_size = vocab_size
-        self.seq_len = seq_len
-        self.embedding_size = embedding_size
-        self.hidden_size = hidden_size
-        self.num_layer = num_layer
-        self.conv_kernels = conv_kernels
-        self.conv_strides = conv_strides
-        self.conv_in_channels = [self.embedding_size] + conv_in_channels
-
-        self.embedding_layer = nn.Embedding(self.vocab_size,
-                                            self.embedding_size,
-                                            padding_idx=0)
-        self.embedding_decoder_layer = nn.Embedding(self.vocab_size,
-                                                    self.embedding_size,
-                                                    padding_idx=0)
-        self.embedding_layer.weight.data[0].fill_(0)
-        self.embedding_decoder_layer.weight.data[0].fill_(0)
-        self.embedding_layer.weight.requires_grad = True
-        self.embedding_decoder_layer.weight.requires_grad = True
-
-        self.encoder = nn.Sequential()
-        temp = torch.randn([1, self.embedding_size, self.seq_len
-                            ])  # to define the mlp input size automatically
-        for i in range(len(self.conv_in_channels) - 1):
-            self.encoder.add_module(
-                f'conv {i}',
-                nn.Conv1d(self.conv_in_channels[i],
-                          self.conv_in_channels[i + 1], self.conv_kernels[i],
-                          self.conv_strides[i]))
-            self.encoder.add_module(
-                f'BN {i}', nn.BatchNorm1d(self.conv_in_channels[i + 1]))
-            self.encoder.add_module(f'ac {i}', nn.LeakyReLU(0.2, inplace=True))
-        temp = self.encoder(temp).size()
-        self.mlp = nn.Linear(self.conv_in_channels[-1] * temp[-1],
-                             self.hidden_size)
-
-        self.decoder_input_size = self.embedding_size + self.hidden_size
-
-        self.decoder = nn.LSTM(input_size=self.decoder_input_size,
-                               hidden_size=self.hidden_size,
-                               num_layers=self.num_layer,
-                               dropout=dropout)
-        self.mlp_decoder = nn.Linear(self.hidden_size, self.vocab_size)
-
-    def encode(self, X: torch.Tensor, is_noise=False):
-        embeddings = self.embedding_layer(
-            X)  # [batch, seq_len, embedding_size]
-        embeddings = embeddings.permute(0, 2, 1)
-        temp = self.encoder(embeddings)
-        temp = temp.view(X.size()[0], -1)
-        hidden = self.mlp(temp)
-        # hidden [batch, hidden_size]
-        # norms = torch.norm(hidden, p=2, dim=1)
-        # hidden /= norms.unsqueeze(1)
-        if is_noise:
-            gaussian_noise = torch.normal(mean=torch.zeros_like(hidden),
-                                          std=self.noise_std).to(
-                                              Config.train_device)
-            hidden += gaussian_noise
-        return hidden
-
-    def decode(self, X: torch.Tensor, hidden: torch.Tensor):
-        all_hidden = hidden.unsqueeze(1)
-        all_hidden = all_hidden.repeat(1, self.seq_len,
-                                       1)  # [batch, seqlen, #]
-        embeddings = self.embedding_decoder_layer(X)
-        augmented_embeddings = torch.cat([embeddings, all_hidden], dim=2)
-        outputs, _ = self.decoder(augmented_embeddings.permute(1, 0, 2))
-        outputs = self.mlp_decoder(outputs).permute(
-            1, 0, 2)  # [batch, seqlen, vocab_size]
-        return outputs
-
-    def forward(self,
-                X,
-                generator=None,
-                inverter=None,
-                encode_only=False,
-                is_noise=False):
-        hidden = self.encode(X, is_noise)
-        if encode_only:
-            return hidden
-        if not generator:
-            pass
-            decoded = self.decode(X, hidden)
-        else:
-            z_hat = inverter(hidden)
-            c_hat = generator(z_hat)
-            decoded = self.decode(X, c_hat)
         return decoded
 
 
@@ -335,12 +223,11 @@ if __name__ == "__main__":
     data_idx = torch.tensor(data_idx)
     data_mask = torch.tensor(data_mask)
     label_idx = torch.tensor(label_idx)
-    Seq2Seq_model_bert = Seq2Seq_bert(embedding_size=Config.embedding_size,
-                                      hidden_size=Config.hidden_size).to(
-                                          Config.train_device)
+    Seq2Seq_model_bert = Seq2Seq_bert(hidden_size=Config.hidden_size).to(
+        Config.train_device)
     criterion_baseline_model = nn.CrossEntropyLoss().to(Config.train_device)
     optimizer_baseline_model = optim.Adam(Seq2Seq_model_bert.parameters(),
-                                          lr=Config.baseline_train_rate)
+                                          lr=Config.baseline_learning_rate)
     data_idx = data_idx.to(Config.train_device)
     data_mask = data_mask.to(Config.train_device)
     label_idx = label_idx.to(Config.train_device)

@@ -55,9 +55,9 @@ def eval_Seq2Seq(test_data, model):
             logits = model(x, x_mask, is_noise=False)
             outputs_idx = logits.argmax(dim=2)
             acc_sum += (outputs_idx == y).float().sum().item()
-            n += y.shape[0]
+            n += y.shape[0] * y.shape[1]
             print('-' * Config.sen_size)
-            for i in range(outputs_idx.shape[0]):
+            for i in range(20):
                 print(' '.join(tokenizer.convert_ids_to_tokens(
                     outputs_idx[i])))
                 print(' '.join(tokenizer.convert_ids_to_tokens(y[i])))
@@ -89,12 +89,11 @@ if __name__ == '__main__':
                            shuffle=False,
                            num_workers=4)
 
-    Seq2Seq_model_bert = Seq2Seq_bert(embedding_size=Config.embedding_size,
-                                      hidden_size=Config.hidden_size).to(
-                                          Config.train_device)
+    Seq2Seq_model_bert = Seq2Seq_bert(hidden_size=Config.hidden_size).to(
+        Config.train_device)
     logging('Training Seq2Seq Model...')
     criterion_Seq2Seq_model = nn.CrossEntropyLoss().to(Config.train_device)
     optimizer_Seq2Seq_model = optim.Adam(Seq2Seq_model_bert.parameters(),
-                                         lr=Config.Seq2Seq_train_rate)
+                                         lr=Config.Seq2Seq_learning_rate)
     train_Seq2Seq(train_data, test_data, Seq2Seq_model_bert,
                   criterion_Seq2Seq_model, optimizer_Seq2Seq_model)

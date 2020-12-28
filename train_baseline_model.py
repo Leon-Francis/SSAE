@@ -79,5 +79,5 @@ if __name__ == "__main__":
     logging('Training Baseline Model...')
     criterion_baseline_model = nn.CrossEntropyLoss().to(Config.train_device)
     optimizer_baseline_model = optim.Adam(baseline_model_bert.parameters(),
-                                          lr=Config.baseline_train_rate)
+                                          lr=Config.baseline_learning_rate)
     train_baseline()
