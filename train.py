@@ -6,7 +6,6 @@ from tools import logging
 from config import Config
 from torch import nn, optim
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 import torch
 from transformers import BertTokenizer
 
@@ -60,10 +59,14 @@ def train_gan_d(train_data, Seq2Seq_model, gan_gen, gan_disc,
     optimizer_Seq2Seq.step()
     optimizer_gan_d.step()
 
+    errD = -(errD_real - errD_fake)
+    return errD
+
+
 def train_gan_g(gan_gen, gan_disc, optimizer_gan_g):
     gan_gen.train()
     optimizer_gan_g.zero_grad()
-    
+
     noise = torch.ones(Config.batch_size,
                        Config.super_hidden_size).to(Config.train_device)
     noise.data.normal_(0, 1)
@@ -74,7 +77,18 @@ def train_gan_g(gan_gen, gan_disc, optimizer_gan_g):
     errG.backward()
     optimizer_gan_g.step()
 
-def train_inv(train_data, Seq2Seq_model, gan_gen, inverter, optimizer_inv, criterion_ce, criterion_js, criterion_mse, gamma=0.5):
+    return errG
+
+
+def train_inv(train_data,
+              Seq2Seq_model,
+              gan_gen,
+              inverter,
+              optimizer_inv,
+              criterion_ce,
+              criterion_js,
+              criterion_mse,
+              gamma=0.5):
     inverter.train()
     optimizer_inv.zero_grad()
 
@@ -103,6 +117,14 @@ def train_inv(train_data, Seq2Seq_model, gan_gen, inverter, optimizer_inv, crite
     errI.backward()
     optimizer_inv.step()
 
+    return errI
+
+
+def evaluate_generator(noise, Seq2Seq_model, gan_gen):
+    gan_gen.eval()
+    Seq2Seq_model.eval()
+    with torch.no_grad():
+        fake_hidden = gan_gen(noise)
 
 
 def eval_Seq2Seq(test_data, model):
@@ -182,18 +204,42 @@ if __name__ == '__main__':
     logging('Training Seq2Seq Model...')
 
     for epoch in range(Config.epochs):
+        niter = 0
         total_loss_Seq2Seq = 0
-
+        total_loss_gan_d = 0
+        total_loss_gan_g = 0
+        total_loss_inv = 0
+        logging(f'Training {epoch} epoch')
         for x, x_mask, y in train_data:
-            total_loss = train_Seq2Seq((x, x_mask, y), Seq2Seq_model_bert,
-                                       criterion_ce, optimizer_Seq2Seq,
-                                       total_loss)
+            niter += 1
+            total_loss_Seq2Seq += train_Seq2Seq(
+                (x, x_mask, y), Seq2Seq_model_bert, criterion_ce,
+                optimizer_Seq2Seq, total_loss_Seq2Seq)
             for i in range(5):
-                train_gan_d((x, x_mask, y), Seq2Seq_model_bert, gan_gen,
-                            gan_disc, optimizer_Seq2Seq, optimizer_gan_d)
+                total_loss_gan_d += train_gan_d(
+                    (x, x_mask, y), Seq2Seq_model_bert, gan_gen, gan_disc,
+                    optimizer_Seq2Seq, optimizer_gan_d)
 
-            train_gan_g(gan_gen, gan_disc, optimizer_gan_g)
+            total_loss_gan_g += train_gan_g(gan_gen, gan_disc, optimizer_gan_g)
 
             for i in range(5):
-                train_inv((x, x_mask, y), Seq2Seq_model, gan_gen, inverter, optimizer_inv, criterion_ce, criterion_js, criterion_mse, gamma=0.5)
-    
+                total_loss_inv += train_inv((x, x_mask, y),
+                                            Seq2Seq_model_bert,
+                                            gan_gen,
+                                            inverter,
+                                            optimizer_inv,
+                                            criterion_ce,
+                                            criterion_js,
+                                            criterion_mse,
+                                            gamma=0.5)
+            if niter % 100 == 0:
+                # decaying noise
+                Seq2Seq_model_bert.noise_std *= 0.995
+                logging(
+                    f'epoch {epoch}, niter {niter}:Loss_Seq2Seq: {total_loss_Seq2Seq / niter}, Loss_gan_g: {total_loss_gan_g / niter}, Loss_gan_d: {total_loss_gan_d / niter / 5}, Loss_inv: {total_loss_inv / niter / 5}'
+                )
+
+                if niter % 30000 == 0:
+                    noise = torch.ones(Config.batch_size, Config.super_hidden_size)
+                    noise.normal_(0, 1)
+                    evaluate_generator(noise, Seq2Seq_model_bert, gan_gen)
