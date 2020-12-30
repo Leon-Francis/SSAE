@@ -120,7 +120,7 @@ def train_inv(train_data,
     return errI
 
 
-def evaluate_generator(noise, Seq2Seq_model, gan_gen):
+def evaluate_generator(noise, Seq2Seq_model, gan_gen, dir):
     gan_gen.eval()
     Seq2Seq_model.eval()
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
@@ -130,46 +130,178 @@ def evaluate_generator(noise, Seq2Seq_model, gan_gen):
         outputs = Seq2Seq_model.decode(fake_hidden)
         # outputs_idx: [batch_size, sen_len]
         outputs_idx = outputs.argmax(dim=2)
-        logging("generator outputs:")
-        for idx in outputs_idx:
-            print(' '.join(tokenizer.convert_ids_to_tokens(outputs_idx[idx])))
+        logging(f'Saving evaluate of generator outputs into {dir}')
+        with open(dir, 'a') as f:
+            for idx in outputs_idx:
+                f.write(' '.join(
+                    tokenizer.convert_ids_to_tokens(outputs_idx[idx])) + '\n')
 
 
-def eval_Seq2Seq(test_data, model):
+def evaluate_inverter(test_data, Seq2Seq_model, gan_gen, gan_disc, inverter,
+                      dir):
+    Seq2Seq_model.eval()
+    gan_gen.eval()
+    gan_disc.eval()
+    inverter.eval()
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
     with torch.no_grad():
-        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        model.eval()
+
+        for x, x_mask, y in test_data:
+            x, x_mask, y = x.to(Config.train_device), x_mask.to(
+                Config.train_device), y.to(Config.train_device)
+
+            # sentence -> encoder -> decoder
+            Seq2Seq_outputs = Seq2Seq_model(x, x_mask, is_noise=True)
+            # Seq2Seq_idx: [batch, seq_len]
+            Seq2Seq_idx = Seq2Seq_outputs.argmax(dim=2)
+
+            # sentence -> encoder -> inverter -> generator ->  decoder
+            hidden = Seq2Seq_model(x, x_mask, is_noise=True, encode_only=True)
+            inv = inverter(hidden)
+            inv_hidden = gan_gen(inv)
+            eigd_outputs = Seq2Seq_model.decode(inv_hidden)
+            # eigd_idx: [batch_size, sen_len]
+            eigd_idx = eigd_outputs.argmax(dim=2)
+
+            logging(f'Saving evaluate of inverter outputs into {dir}')
+            with open(dir, 'a') as f:
+                for i in range(Config.batch_size):
+                    f.write('------orginal sentence---------\n')
+                    f.write(' '.join(tokenizer.convert_ids_to_tokens(y[i])) +
+                            '\n')
+                    f.write('------setence -> encoder -> decoder-------\n')
+                    f.write(' '.join(
+                        tokenizer.convert_ids_to_tokens(Seq2Seq_idx)) + '\n')
+                    f.write(
+                        '------sentence -> encoder -> inverter -> generator -> decoder-------\n'
+                    )
+                    f.write(
+                        ' '.join(tokenizer.convert_ids_to_tokens(eigd_idx)) +
+                        '\n' * 2)
+
+
+def evaluate_Seq2Seq(test_data, Seq2Seq_model, dir):
+    Seq2Seq_model.eval()
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    with torch.no_grad():
         acc_sum = 0
         n = 0
         for x, x_mask, y in test_data:
             x, x_mask, y = x.to(Config.train_device), x_mask.to(
                 Config.train_device), y.to(Config.train_device)
-            logits = model(x, x_mask, is_noise=False)
+            logits = Seq2Seq_model(x, x_mask, is_noise=False)
+            # outputs_idx: [batch, sen_len]
             outputs_idx = logits.argmax(dim=2)
             acc_sum += (outputs_idx == y).float().sum().item()
             n += y.shape[0] * y.shape[1]
-            print('-' * Config.sen_len)
-            for i in range(5):
-                print(' '.join(tokenizer.convert_ids_to_tokens(
-                    outputs_idx[i])))
-                print(' '.join(tokenizer.convert_ids_to_tokens(y[i])))
+            logging(f'Saving evaluate of Seq2Seq_model outputs into {dir}')
+            with open(dir, 'a') as f:
+                for i in range(Config.batch_size):
+                    f.write('-------orginal sentence----------\n')
+                    f.write(' '.join(tokenizer.convert_ids_to_tokens(y[i])) +
+                            '\n')
+                    f.write(
+                        '-------sentence -> encoder -> decoder----------\n')
+                    f.write(' '.join(
+                        tokenizer.convert_ids_to_tokens(outputs_idx[i])) +
+                            '\n' * 2)
 
-            print('-' * Config.sen_len)
         return acc_sum / n
+
+
+def save_all_models(Seq2Seq_model, gan_gen, gan_disc, inverter, dir):
+    logging('Saving models...')
+    torch.save(Seq2Seq_model.state_dict(), dir + '/Seq2Seq_model.pt')
+    torch.save(gan_gen.state_dict(), dir + '/gan_gen.pt')
+    torch.save(gan_disc.state_dict(), dir + '/gan_disc.pt')
+    torch.save(inverter.state_dict(), dir + '/inverter.pt')
+
+
+def perturb(data, Seq2Seq_model, gan_gen, inverter, dir, hybrid=False):
+    # Turn on evaluation mode which disables dropout.
+    gan_gen = gan_gen.to('cpu')
+    inverter = inverter.to('cpu')
+    Seq2Seq_model = Seq2Seq_model.to('cpu')
+
+    with open(dir, "a") as f:
+        for batch in data_source:
+            premise, hypothesis, target, premise_words, hypothesise_words, lengths = batch
+
+            c = autoencoder.encode(hypothesis, lengths, noise=False)
+            z = inverter(c).data.cpu()
+
+            batch_size = premise.size(0)
+            for i in range(batch_size):
+                f.write(
+                    "========================================================\n"
+                )
+                f.write(" ".join(hypothesise_words[i]) + "\n")
+                if hybrid:
+                    x_adv1, x_adv2, d_adv1, d_adv2, all_adv = search(
+                        gan_gen, pred_fn,
+                        (premise[i].unsqueeze(0), hypothesis[i].unsqueeze(0)),
+                        target[i], z[i].view(1, 100))
+                else:
+                    x_adv1, x_adv2, d_adv1, d_adv2, all_adv = search_fast(
+                        gan_gen, pred_fn,
+                        (premise[i].unsqueeze(0), hypothesis[i].unsqueeze(0)),
+                        target[i], z[i].view(1, 100))
+
+                try:
+                    hyp_sample_idx1 = autoencoder.generate(
+                        x_adv1, 10, True).data.cpu().numpy()[0]
+                    hyp_sample_idx2 = autoencoder.generate(
+                        x_adv2, 10, True).data.cpu().numpy()[0]
+                    words1 = [
+                        corpus_test.dictionary.idx2word[x]
+                        for x in hyp_sample_idx1
+                    ]
+                    words2 = [
+                        corpus_test.dictionary.idx2word[x]
+                        for x in hyp_sample_idx2
+                    ]
+                    if "<eos>" in words1:
+                        words1 = words1[:words1.index("<eos>")]
+                    if "<eos>" in words2:
+                        words2 = words2[:words2.index("<eos>")]
+
+                    f.write(
+                        "\n====================Adversary==========================\n"
+                    )
+                    f.write("Classfier 1 => " + " ".join(words1) + "\t" +
+                            str(d_adv1) + "\n")
+                    f.write("Classfier 2 => " + " ".join(words2) + "\t" +
+                            str(d_adv2) + "\n")
+                    f.write(
+                        "========================================================\n"
+                    )
+                    f.write("\n".join(all_adv) + "\n")
+                    f.flush()
+                except Exception:
+                    print(premise_words)
+                    print(hypothesise_words)
+                    print("no adversary found for : \n {0} \n {1}\n\n". \
+                          format(" ".join(premise_words[i]), " ".join(hypothesise_words[i])))
+
+    gan_gen = gan_gen.to(Config.train_device)
+    inverter = inverter.to(Config.train_device)
+    Seq2Seq_model = Seq2Seq_model.to(Config.train_device)
 
 
 if __name__ == '__main__':
     logging('Using cuda device gpu: ' + Config.train_device.type)
-    cur_dir = Config.output_dir + '/Seq2Seq_model/' + str(int(time.time()))
+    cur_dir = Config.output_dir + '/gan_model/' + str(int(time.time()))
+    cur_dir_models = cur_dir + '/models'
     # make output directory if it doesn't already exist
-    if not os.path.isdir(Config.output_dir + '/Seq2Seq_model'):
-        os.makedirs(Config.output_dir + '/Seq2Seq_model')
+    if not os.path.isdir(Config.output_dir + '/gan_model'):
+        os.makedirs(Config.output_dir + '/gan_model')
     if not os.path.isdir(cur_dir):
         os.makedirs(cur_dir)
-        os.makedirs(cur_dir + '/models')
+        os.makedirs(cur_dir_models)
     logging('Saving into directory' + cur_dir)
 
     # prepare dataset
+    logging('preparing data...')
     train_dataset_orig = Seq2Seq_DataSet(Config.train_data_path)
     test_dataset_orig = Seq2Seq_DataSet(Config.test_data_path)
     train_data = DataLoader(train_dataset_orig,
@@ -180,8 +312,10 @@ if __name__ == '__main__':
                            batch_size=Config.batch_size,
                            shuffle=False,
                            num_workers=4)
+    logging('prepare data finished')
 
     # init models
+    logging('init models, optimizer, criterion...')
     Seq2Seq_model_bert = Seq2Seq_bert(hidden_size=Config.hidden_size).to(
         Config.train_device)
     gan_gen = MLP_G(Config.super_hidden_size,
@@ -207,6 +341,7 @@ if __name__ == '__main__':
     criterion_mse = nn.MSELoss().to(Config.train_device)
     criterion_js = JSDistance().to(Config.train_device)
     criterion_Seq2Seq_model = nn.CrossEntropyLoss().to(Config.train_device)
+    logging('init models, optimizer, criterion finished')
 
     # start training
     logging('Training Seq2Seq Model...')
@@ -247,8 +382,5 @@ if __name__ == '__main__':
                     f'epoch {epoch}, niter {niter}:Loss_Seq2Seq: {total_loss_Seq2Seq / niter}, Loss_gan_g: {total_loss_gan_g / niter}, Loss_gan_d: {total_loss_gan_d / niter / 5}, Loss_inv: {total_loss_inv / niter / 5}'
                 )
 
-                if niter % 30000 == 0:
-                    noise = torch.ones(Config.batch_size,
-                                       Config.super_hidden_size)
-                    noise.normal_(0, 1)
-                    evaluate_generator(noise, Seq2Seq_model_bert, gan_gen)
+        # end of epoch --------------------------------
+        # evaluation

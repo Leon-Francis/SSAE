@@ -1,4 +1,3 @@
-from tqdm import tqdm
 from torch.utils.data import Dataset
 from tools import read_standard_data, logging
 import torch
@@ -20,13 +19,13 @@ class Baseline_Dataset(Dataset):
 
     def data2tokens(self):
         logging(f'{self.path} in data2tokens')
-        for sen in tqdm(self.datas):
+        for sen in self.datas:
             tokens = self.tokenizer.tokenize(sen)[:Config.sen_len - 2]
             self.data_tokens.append(['CLS'] + tokens + ['SEP'])
 
     def token2idx(self):
         logging(f'{self.path} in token2idx')
-        for tokens in tqdm(self.data_tokens):
+        for tokens in self.data_tokens:
             self.data_idx.append(self.tokenizer.convert_tokens_to_ids(tokens))
             self.data_mask.append([1] * len(tokens))
 
@@ -69,17 +68,17 @@ class Seq2Seq_DataSet(Dataset):
 
     def data2tokens(self):
         logging(f'{self.path} in data2tokens')
-        for sen in tqdm(self.datas):
+        for sen in self.datas:
             self.data_tokens.append(self.tokenizer.tokenize(sen + ' [SEP]'))
             self.label_tokens.append(self.tokenizer.tokenize('[CLS] ' + sen))
 
     def token2idx(self):
         logging(f'{self.path} in token2idx')
-        for tokens in tqdm(self.data_tokens):
+        for tokens in self.data_tokens:
             self.data_idx.append(self.tokenizer.convert_tokens_to_ids(tokens))
             self.data_mask.append([1] * len(tokens))
 
-        for tokens in tqdm(self.label_tokens):
+        for tokens in self.label_tokens:
             self.label_idx.append(self.tokenizer.convert_tokens_to_ids(tokens))
 
         sen_len = max([len(idx) for idx in self.data_idx])
