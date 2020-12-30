@@ -25,7 +25,7 @@ class Config:
     hidden_size = 768
     super_hidden_size = 100
     vocab_size = 30522
-    sen_size = 70
+    sen_len = 70
 
 
 if __name__ == "__main__":

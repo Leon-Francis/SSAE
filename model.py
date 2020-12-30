@@ -10,7 +10,7 @@ from torch import optim
 class Seq2Seq_bert(nn.Module):
     def __init__(self, hidden_size, num_layers=1, dropout=0.0, noise_std=0.2):
         super(Seq2Seq_bert, self).__init__()
-        self.seq_len = Config.sen_size
+        self.seq_len = Config.sen_len
         self.dropout = dropout
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -19,7 +19,7 @@ class Seq2Seq_bert(nn.Module):
                                                  output_hidden_states=True)
         for param in self.encoder.parameters():
             param.requires_grad = False
-        self.decoder = nn.LSTM(input_size=Config.hidden_size * 2,
+        self.decoder = nn.LSTM(input_size=Config.hidden_size,
                                hidden_size=self.hidden_size,
                                num_layers=self.num_layers,
                                dropout=self.dropout)
@@ -49,21 +49,21 @@ class Seq2Seq_bert(nn.Module):
             hidden += gaussian_noise
         return hidden, state
 
-    def decode(self, hidden, state):
+    def decode(self, hidden):
         """lstm_based_decode
-
+            without inputs_embedding
         Args:
             hidden (torch.tensor): bert_hidden[-1] [batch, seq_len, hidden_size]
-            state (torch.tensoor): bert_hidden[0] [batch,seq_len, hidden_size]
+            state (torch.tensoor): bert_hidden[0] [batch, seq_len, hidden_size]
 
         Returns:
             [torch.tensor]: outputs [batch, seq_len, vocab_size]
         """
         # hidden [batch, seq_len, hidden_size]
         # state [batch, seq_len, hidden_size]
-        all_hidden = torch.cat([state, hidden], 2)
+        "all_hidden = torch.cat([state, hidden], 2)"
         # all_hidden [batch, seq_len, hidden_size * 2]
-        outputs, _ = self.decoder(all_hidden.permute(1, 0, 2))
+        outputs, _ = self.decoder(hidden.permute(1, 0, 2))
         outputs = self.mlp_decoder(outputs).permute(1, 0, 2)
         # outputs [batch, seq_len, vocab_size]
         return outputs
@@ -94,11 +94,11 @@ class Seq2Seq_bert(nn.Module):
         if encode_only:
             return hidden
         if not generator:
-            decoded = self.decode(hidden, state)
+            decoded = self.decode(hidden)
         else:
             z_hat = inverter(hidden)
             c_hat = generator(z_hat)
-            decoded = self.decode(c_hat, state)
+            decoded = self.decode(c_hat)
         return decoded
 
 

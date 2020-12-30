@@ -56,13 +56,13 @@ def eval_Seq2Seq(test_data, model):
             outputs_idx = logits.argmax(dim=2)
             acc_sum += (outputs_idx == y).float().sum().item()
             n += y.shape[0] * y.shape[1]
-            print('-' * Config.sen_size)
+            print('-' * Config.sen_len)
             for i in range(20):
                 print(' '.join(tokenizer.convert_ids_to_tokens(
                     outputs_idx[i])))
                 print(' '.join(tokenizer.convert_ids_to_tokens(y[i])))
 
-            print('-' * Config.sen_size)
+            print('-' * Config.sen_len)
         return acc_sum / n
 
 

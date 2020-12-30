@@ -123,8 +123,16 @@ def train_inv(train_data,
 def evaluate_generator(noise, Seq2Seq_model, gan_gen):
     gan_gen.eval()
     Seq2Seq_model.eval()
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
     with torch.no_grad():
         fake_hidden = gan_gen(noise)
+        # outputs: [batch_size, sen_len, vocab_size]
+        outputs = Seq2Seq_model.decode(fake_hidden)
+        # outputs_idx: [batch_size, sen_len]
+        outputs_idx = outputs.argmax(dim=2)
+        logging("generator outputs:")
+        for idx in outputs_idx:
+            print(' '.join(tokenizer.convert_ids_to_tokens(outputs_idx[idx])))
 
 
 def eval_Seq2Seq(test_data, model):
@@ -140,13 +148,13 @@ def eval_Seq2Seq(test_data, model):
             outputs_idx = logits.argmax(dim=2)
             acc_sum += (outputs_idx == y).float().sum().item()
             n += y.shape[0] * y.shape[1]
-            print('-' * Config.sen_size)
+            print('-' * Config.sen_len)
             for i in range(5):
                 print(' '.join(tokenizer.convert_ids_to_tokens(
                     outputs_idx[i])))
                 print(' '.join(tokenizer.convert_ids_to_tokens(y[i])))
 
-            print('-' * Config.sen_size)
+            print('-' * Config.sen_len)
         return acc_sum / n
 
 
@@ -240,6 +248,7 @@ if __name__ == '__main__':
                 )
 
                 if niter % 30000 == 0:
-                    noise = torch.ones(Config.batch_size, Config.super_hidden_size)
+                    noise = torch.ones(Config.batch_size,
+                                       Config.super_hidden_size)
                     noise.normal_(0, 1)
                     evaluate_generator(noise, Seq2Seq_model_bert, gan_gen)

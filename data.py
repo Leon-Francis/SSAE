@@ -21,7 +21,7 @@ class Baseline_Dataset(Dataset):
     def data2tokens(self):
         logging(f'{self.path} in data2tokens')
         for sen in tqdm(self.datas):
-            tokens = self.tokenizer.tokenize(sen)[:Config.sen_size - 2]
+            tokens = self.tokenizer.tokenize(sen)[:Config.sen_len - 2]
             self.data_tokens.append(['CLS'] + tokens + ['SEP'])
 
     def token2idx(self):
@@ -30,11 +30,11 @@ class Baseline_Dataset(Dataset):
             self.data_idx.append(self.tokenizer.convert_tokens_to_ids(tokens))
             self.data_mask.append([1] * len(tokens))
 
-        max_len = Config.sen_size
+        sen_len = Config.sen_len
         for i in range(len(self.data_idx)):
-            if len(self.data_idx[i]) < max_len:
-                self.data_idx[i] += [0] * (max_len - len(self.data_idx[i]))
-                self.data_mask[i] += [0] * (max_len - len(self.data_mask[i]))
+            if len(self.data_idx[i]) < sen_len:
+                self.data_idx[i] += [0] * (sen_len - len(self.data_idx[i]))
+                self.data_mask[i] += [0] * (sen_len - len(self.data_mask[i]))
 
         for label in self.labels:
             self.label_idx.append(label)
@@ -82,11 +82,11 @@ class Seq2Seq_DataSet(Dataset):
         for tokens in tqdm(self.label_tokens):
             self.label_idx.append(self.tokenizer.convert_tokens_to_ids(tokens))
 
-        max_len = max([len(idx) for idx in self.data_idx])
+        sen_len = max([len(idx) for idx in self.data_idx])
         for i in range(len(self.data_idx)):
-            self.data_idx[i] += [0] * (max_len - len(self.data_idx[i]))
-            self.label_idx[i] += [0] * (max_len - len(self.label_idx[i]))
-            self.data_mask[i] += [0] * (max_len - len(self.data_mask[i]))
+            self.data_idx[i] += [0] * (sen_len - len(self.data_idx[i]))
+            self.label_idx[i] += [0] * (sen_len - len(self.label_idx[i]))
+            self.data_mask[i] += [0] * (sen_len - len(self.data_mask[i]))
 
     def transfor(self):
         self.data_idx = torch.tensor(self.data_idx)
