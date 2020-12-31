@@ -3,6 +3,7 @@ from tools import read_standard_data, logging
 import torch
 from config import Config
 from transformers import BertTokenizer
+from tqdm import tqdm
 
 
 class Baseline_Dataset(Dataset):
@@ -19,7 +20,7 @@ class Baseline_Dataset(Dataset):
 
     def data2tokens(self):
         logging(f'{self.path} in data2tokens')
-        for sen in self.datas:
+        for sen in tqdm(self.datas):
             tokens = self.tokenizer.tokenize(sen)[:Config.sen_len - 2]
             self.data_tokens.append(['CLS'] + tokens + ['SEP'])
 
@@ -69,7 +70,7 @@ class Seq2Seq_DataSet(Dataset):
 
     def data2tokens(self):
         logging(f'{self.path} in data2tokens')
-        for sen in self.datas:
+        for sen in tqdm(self.datas):
             self.data_tokens.append(self.tokenizer.tokenize(sen + ' [SEP]'))
             self.label_tokens.append(self.tokenizer.tokenize('[CLS] ' + sen))
 
@@ -98,7 +99,8 @@ class Seq2Seq_DataSet(Dataset):
         self.classification_label = torch.tensor(self.classification_label)
 
     def __getitem__(self, item):
-        return self.data_idx[item], self.data_mask[item], self.label_idx[item], self.classification_label[item]
+        return self.data_idx[item], self.data_mask[item], self.label_idx[
+            item], self.classification_label[item]
 
     def __len__(self):
         return len(self.datas)
