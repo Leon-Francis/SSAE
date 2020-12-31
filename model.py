@@ -149,7 +149,7 @@ class MLP_G(nn.Module):
         # X: [batch, seq_len, super_hidden_size]
         X = X.view(-1, X.shape[2])
         logits = self.mlp(X)
-        logits = logits.view(Config.batch_size, Config.sen_len, -1)
+        logits = logits.view(-1, Config.sen_len, 768)
         return logits
 
 
@@ -173,7 +173,7 @@ class MLP_I(nn.Module):
         # X: [batch, seq_len, hidden_size]
         X = X.view(-1, X.shape[2])
         logits = self.mlp(X)
-        logits = logits.view(Config.batch_size, Config.sen_len, -1)
+        logits = logits.view(-1, Config.sen_len, 100)
         return logits
 
 

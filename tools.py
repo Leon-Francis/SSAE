@@ -43,7 +43,7 @@ def write_standard_data(datas, labels, path, mod='w'):
 def read_standard_data4Test(path):
     data = []
     labels = []
-    i = 100
+    i = 320
     with open(path, 'r', encoding='utf-8') as file:
         for line in file:
             i -= 1

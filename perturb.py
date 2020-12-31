@@ -9,12 +9,15 @@ def perturb(data, Seq2Seq_model, gan_gen, inverter, baseline_model, dir):
     gan_gen.eval()
     inverter.eval()
     baseline_model.eval()
-
+    attack_succeeded_num = 0
     with open(dir, "a") as f:
         for x, x_mask, y, label in data:
+            x, x_mask, y, label = x.to(Config.train_device), x_mask.to(
+                Config.train_device), y.to(Config.train_device), label.to(
+                    Config.train_device)
             tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
             # c: [batch, sen_len, hidden_size]
-            c = Seq2Seq_model(x, x, x_mask, is_noise=False, encode_only=True)
+            c = Seq2Seq_model(x, x_mask, is_noise=False, encode_only=True)
             # z: [batch, seq_len, super_hidden_size]
             z = inverter(c).data
 
@@ -30,24 +33,23 @@ def perturb(data, Seq2Seq_model, gan_gen, inverter, baseline_model, dir):
                     baseline_model,
                     label[i],
                     z[i],
-                    samples_num=20)
+                    samples_num=5)
 
                 if successed:
+                    attack_succeeded_num += 1
                     f.write('==============Attark succeed!=================\n')
-                    f.write(f'20 samples try for {counter} times\n')
+                    f.write(f'5 samples try for {counter} times\n')
                     f.write('Attack successed sample: \n')
                     for i, successed_x in enumerate(
                             perturb_x.masked_select(successed_mask)):
                         f.write(' '.join(
                             tokenizer.convert_ids_to_tokens(successed_x)))
-                        f.write(str(bound_distence[i]))
                         f.write('\n')
 
                     f.write('\nAll attack samples as follows: \n')
                     for i, perturb_x_sample in enumerate(perturb_x):
                         f.write(' '.join(
                             tokenizer.convert_ids_to_tokens(perturb_x_sample)))
-                        f.write(str(bound_distence[i]))
                         f.write('\n')
                     f.write('\n============================================\n')
                     f.flush()
@@ -58,8 +60,8 @@ def perturb(data, Seq2Seq_model, gan_gen, inverter, baseline_model, dir):
                     for i, perturb_x_sample in enumerate(perturb_x):
                         f.write(' '.join(
                             tokenizer.convert_ids_to_tokens(perturb_x_sample)))
-                        f.write(str(bound_distence[i]))
                         f.write('\n')
+    return attack_succeeded_num / len(data)
 
 
 def search_fast(Seq2Seq_model,
@@ -67,7 +69,7 @@ def search_fast(Seq2Seq_model,
                 baseline_model,
                 label,
                 z,
-                samples_num=20,
+                samples_num=5,
                 right=0.005):
     """search for adversary sample
 
@@ -77,7 +79,7 @@ def search_fast(Seq2Seq_model,
         baseline_model (nn.Module): input: [batch, seq_len], output: [batch, 4]
         label (torch.tensor): [1]
         z (torch.tensor): [sen_len, super_hidden_size]
-        samples_num (int, optional): num of samples. Defaults to 20.
+        samples_num (int, optional): num of samples. Defaults to 5.
         right (float, optional): begining search boundary. Defaults to 0.005.
 
     Returns:
@@ -92,9 +94,9 @@ def search_fast(Seq2Seq_model,
         counter = 0
         while counter < 5:
             # search_z: [samples_num, sen_len, super_hidden_size]
-            search_z = z.repeat(samples_num, z.shape[0], z.shape[1])
+            search_z = z.repeat(samples_num, 1, 1)
             delta = torch.FloatTensor(search_z.size()).uniform_(
-                -1 * search_bound, search_bound)
+                -1 * search_bound, search_bound).to(Config.train_device)
             # bound_distence: [samples_num, sen_len, super_hidden_size]
             bound_distence = torch.abs(delta)
             search_z += delta
@@ -109,6 +111,7 @@ def search_fast(Seq2Seq_model,
                     if perturb_x[i][word_idx].data == 102:
                         perturb_x_mask[i][word_idx + 1:] = 0
                         break
+            perturb_x_mask = perturb_x_mask.to(Config.train_device)
             # perturb_label: [samples_num]
             perturb_label = baseline_model(perturb_x,
                                            perturb_x_mask).argmax(dim=1)

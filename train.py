@@ -100,7 +100,7 @@ def train_inv(train_data,
 
     fake_hidden = gan_gen(noise)
     inv_noise = inverter(fake_hidden)
-    errI = criterion_js(inv_noise.view(-1, inv_noise[2]), noise.view(-1, noise[2]))
+    errI = criterion_js(inv_noise.view(-1, inv_noise.shape[2]), noise.view(-1, noise.shape[2]))
 
     x, x_mask, y = train_data
     x, x_mask, y = x.to(Config.train_device), x_mask.to(
@@ -139,7 +139,7 @@ def evaluate_generator(Seq2Seq_model, gan_gen, dir):
         with open(dir, 'a') as f:
             for idx in outputs_idx:
                 f.write(' '.join(
-                    tokenizer.convert_ids_to_tokens(outputs_idx[idx])) + '\n')
+                    tokenizer.convert_ids_to_tokens(idx)) + '\n')
 
 
 def evaluate_inverter(test_data, Seq2Seq_model, gan_gen, inverter, dir):
@@ -149,7 +149,7 @@ def evaluate_inverter(test_data, Seq2Seq_model, gan_gen, inverter, dir):
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
     with torch.no_grad():
 
-        for x, x_mask, y in test_data:
+        for x, x_mask, y, _ in test_data:
             x, x_mask, y = x.to(Config.train_device), x_mask.to(
                 Config.train_device), y.to(Config.train_device)
 
@@ -176,12 +176,12 @@ def evaluate_inverter(test_data, Seq2Seq_model, gan_gen, inverter, dir):
                             '\n')
                     f.write('------setence -> encoder -> decoder-------\n')
                     f.write(' '.join(
-                        tokenizer.convert_ids_to_tokens(Seq2Seq_idx)) + '\n')
+                        tokenizer.convert_ids_to_tokens(Seq2Seq_idx[i])) + '\n')
                     f.write(
                         '------sentence -> encoder -> inverter -> generator -> decoder-------\n'
                     )
                     f.write(
-                        ' '.join(tokenizer.convert_ids_to_tokens(eigd_idx)) +
+                        ' '.join(tokenizer.convert_ids_to_tokens(eigd_idx[i])) +
                         '\n' * 2)
 
 
@@ -191,7 +191,7 @@ def evaluate_Seq2Seq(test_data, Seq2Seq_model, dir):
     with torch.no_grad():
         acc_sum = 0
         n = 0
-        for x, x_mask, y in test_data:
+        for x, x_mask, y, _ in test_data:
             x, x_mask, y = x.to(Config.train_device), x_mask.to(
                 Config.train_device), y.to(Config.train_device)
             logits = Seq2Seq_model(x, x_mask, is_noise=False)
@@ -324,12 +324,12 @@ if __name__ == '__main__':
         os.makedirs(cur_dir_models + f'/epoch{epoch}')
         save_all_models(Seq2Seq_model_bert, gan_gen, gan_disc, inverter,
                         cur_dir_models + f'/epoch{epoch}')
-        logging('epoch {epoch} evaluate Seq2Seq model')
+        logging(f'epoch {epoch} evaluate Seq2Seq model')
         Seq2Seq_acc = evaluate_Seq2Seq(
             test_data, Seq2Seq_model_bert,
             cur_dir_models + f'/epoch{epoch}_evaluate_Seq2Seq')
         logging(f'Seq2Seq_model_bert acc = {Seq2Seq_acc}')
-        logging('epoch {epoch} evaluate generator model')
+        logging(f'epoch {epoch} evaluate generator model')
         evaluate_generator(
             Seq2Seq_model_bert, gan_gen,
             cur_dir_models + f'/epoch{epoch}_evaluate_generator')

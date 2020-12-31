@@ -3,7 +3,6 @@ from tools import read_standard_data4Test, logging, read_standard_data
 import torch
 from config import Config
 from transformers import BertTokenizer
-from tqdm import tqdm
 
 
 class Baseline_Dataset(Dataset):
@@ -20,7 +19,7 @@ class Baseline_Dataset(Dataset):
 
     def data2tokens(self):
         logging(f'{self.path} in data2tokens')
-        for sen in tqdm(self.datas):
+        for sen in self.datas:
             tokens = self.tokenizer.tokenize(sen)[:Config.sen_len - 2]
             self.data_tokens.append(['CLS'] + tokens + ['SEP'])
 
@@ -70,9 +69,9 @@ class Seq2Seq_DataSet(Dataset):
 
     def data2tokens(self):
         logging(f'{self.path} in data2tokens')
-        for sen in tqdm(self.datas):
-            self.data_tokens.append(self.tokenizer.tokenize(sen + ' [SEP]'))
-            self.label_tokens.append(self.tokenizer.tokenize('[CLS] ' + sen))
+        for sen in self.datas:
+            self.data_tokens.append(self.tokenizer.tokenize(sen[:Config.sen_len - 1] + ' [SEP]'))
+            self.label_tokens.append(self.tokenizer.tokenize('[CLS] ' + sen[:Config.sen_len - 1]))
 
     def token2idx(self):
         logging(f'{self.path} in token2idx')
@@ -83,11 +82,12 @@ class Seq2Seq_DataSet(Dataset):
         for tokens in self.label_tokens:
             self.label_idx.append(self.tokenizer.convert_tokens_to_ids(tokens))
 
-        sen_len = max([len(idx) for idx in self.data_idx])
+        sen_len = Config.sen_len
         for i in range(len(self.data_idx)):
-            self.data_idx[i] += [0] * (sen_len - len(self.data_idx[i]))
-            self.label_idx[i] += [0] * (sen_len - len(self.label_idx[i]))
-            self.data_mask[i] += [0] * (sen_len - len(self.data_mask[i]))
+            if len(self.data_idx[i]) < sen_len:
+                self.data_idx[i] += [0] * (sen_len - len(self.data_idx[i]))
+                self.label_idx[i] += [0] * (sen_len - len(self.label_idx[i]))
+                self.data_mask[i] += [0] * (sen_len - len(self.data_mask[i]))
 
         for label in self.labels:
             self.classification_label.append(label)
@@ -113,7 +113,7 @@ class Seq2Seq_DataSet4Test(Dataset):
         Dataset ([type]): [description]
     """
     def __init__(self, path):
-        super(Seq2Seq_DataSet, self).__init__()
+        super(Seq2Seq_DataSet4Test, self).__init__()
         self.path = path
         self.datas, self.labels = read_standard_data4Test(self.path)
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
@@ -129,9 +129,9 @@ class Seq2Seq_DataSet4Test(Dataset):
 
     def data2tokens(self):
         logging(f'{self.path} in data2tokens')
-        for sen in tqdm(self.datas):
-            self.data_tokens.append(self.tokenizer.tokenize(sen + ' [SEP]'))
-            self.label_tokens.append(self.tokenizer.tokenize('[CLS] ' + sen))
+        for sen in self.datas:
+            self.data_tokens.append(self.tokenizer.tokenize(sen[:Config.sen_len - 1] + ' [SEP]'))
+            self.label_tokens.append(self.tokenizer.tokenize('[CLS] ' + sen[:Config.sen_len - 1]))
 
     def token2idx(self):
         logging(f'{self.path} in token2idx')
@@ -142,11 +142,12 @@ class Seq2Seq_DataSet4Test(Dataset):
         for tokens in self.label_tokens:
             self.label_idx.append(self.tokenizer.convert_tokens_to_ids(tokens))
 
-        sen_len = max([len(idx) for idx in self.data_idx])
+        sen_len = Config.sen_len
         for i in range(len(self.data_idx)):
-            self.data_idx[i] += [0] * (sen_len - len(self.data_idx[i]))
-            self.label_idx[i] += [0] * (sen_len - len(self.label_idx[i]))
-            self.data_mask[i] += [0] * (sen_len - len(self.data_mask[i]))
+            if len(self.data_idx[i]) < sen_len:
+                self.data_idx[i] += [0] * (sen_len - len(self.data_idx[i]))
+                self.label_idx[i] += [0] * (sen_len - len(self.label_idx[i]))
+                self.data_mask[i] += [0] * (sen_len - len(self.data_mask[i]))
 
         for label in self.labels:
             self.classification_label.append(label)
