@@ -62,6 +62,7 @@ class Seq2Seq_DataSet(Dataset):
         self.data_idx = []
         self.label_idx = []
         self.data_mask = []
+        self.classification_label = []
         self.data2tokens()
         self.token2idx()
         self.transfor()
@@ -87,13 +88,17 @@ class Seq2Seq_DataSet(Dataset):
             self.label_idx[i] += [0] * (sen_len - len(self.label_idx[i]))
             self.data_mask[i] += [0] * (sen_len - len(self.data_mask[i]))
 
+        for label in self.labels:
+            self.classification_label.append(label)
+
     def transfor(self):
         self.data_idx = torch.tensor(self.data_idx)
         self.data_mask = torch.tensor(self.data_mask)
         self.label_idx = torch.tensor(self.label_idx)
+        self.classification_label = torch.tensor(self.classification_label)
 
     def __getitem__(self, item):
-        return self.data_idx[item], self.data_mask[item], self.label_idx[item]
+        return self.data_idx[item], self.data_mask[item], self.label_idx[item], self.classification_label[item]
 
     def __len__(self):
         return len(self.datas)

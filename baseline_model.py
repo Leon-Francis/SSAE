@@ -16,6 +16,15 @@ class Baseline_Model_Bert(nn.Module):
             init.normal_(params, mean=0, std=0.01)
 
     def forward(self, inputs, inputs_mask):
+        """forward
+
+        Args:
+            inputs (torch.tensor): [batch, seq_len]
+            inputs_mask (torch.tensor): [batch, seq_len]
+
+        Returns:
+            logits: [batch, 4]
+        """
         encoder, pooled = self.bert_model(inputs, attention_mask=inputs_mask)
         logits = self.linear(pooled)
         return logits

@@ -156,10 +156,8 @@ def evaluate_inverter(test_data, Seq2Seq_model, gan_gen, gan_disc, inverter,
             Seq2Seq_idx = Seq2Seq_outputs.argmax(dim=2)
 
             # sentence -> encoder -> inverter -> generator ->  decoder
-            hidden = Seq2Seq_model(x, x_mask, is_noise=True, encode_only=True)
-            inv = inverter(hidden)
-            inv_hidden = gan_gen(inv)
-            eigd_outputs = Seq2Seq_model.decode(inv_hidden)
+            # eigd_outputs: [batch, seq_len, vocab_size]
+            eigd_outputs = Seq2Seq_model(x, x_mask, is_noise=True, generator=gan_gen, inverter=inverter)
             # eigd_idx: [batch_size, sen_len]
             eigd_idx = eigd_outputs.argmax(dim=2)
 
@@ -215,77 +213,6 @@ def save_all_models(Seq2Seq_model, gan_gen, gan_disc, inverter, dir):
     torch.save(gan_gen.state_dict(), dir + '/gan_gen.pt')
     torch.save(gan_disc.state_dict(), dir + '/gan_disc.pt')
     torch.save(inverter.state_dict(), dir + '/inverter.pt')
-
-
-def perturb(data, Seq2Seq_model, gan_gen, inverter, dir, hybrid=False):
-    # Turn on evaluation mode which disables dropout.
-    gan_gen = gan_gen.to('cpu')
-    inverter = inverter.to('cpu')
-    Seq2Seq_model = Seq2Seq_model.to('cpu')
-
-    with open(dir, "a") as f:
-        for batch in data_source:
-            premise, hypothesis, target, premise_words, hypothesise_words, lengths = batch
-
-            c = autoencoder.encode(hypothesis, lengths, noise=False)
-            z = inverter(c).data.cpu()
-
-            batch_size = premise.size(0)
-            for i in range(batch_size):
-                f.write(
-                    "========================================================\n"
-                )
-                f.write(" ".join(hypothesise_words[i]) + "\n")
-                if hybrid:
-                    x_adv1, x_adv2, d_adv1, d_adv2, all_adv = search(
-                        gan_gen, pred_fn,
-                        (premise[i].unsqueeze(0), hypothesis[i].unsqueeze(0)),
-                        target[i], z[i].view(1, 100))
-                else:
-                    x_adv1, x_adv2, d_adv1, d_adv2, all_adv = search_fast(
-                        gan_gen, pred_fn,
-                        (premise[i].unsqueeze(0), hypothesis[i].unsqueeze(0)),
-                        target[i], z[i].view(1, 100))
-
-                try:
-                    hyp_sample_idx1 = autoencoder.generate(
-                        x_adv1, 10, True).data.cpu().numpy()[0]
-                    hyp_sample_idx2 = autoencoder.generate(
-                        x_adv2, 10, True).data.cpu().numpy()[0]
-                    words1 = [
-                        corpus_test.dictionary.idx2word[x]
-                        for x in hyp_sample_idx1
-                    ]
-                    words2 = [
-                        corpus_test.dictionary.idx2word[x]
-                        for x in hyp_sample_idx2
-                    ]
-                    if "<eos>" in words1:
-                        words1 = words1[:words1.index("<eos>")]
-                    if "<eos>" in words2:
-                        words2 = words2[:words2.index("<eos>")]
-
-                    f.write(
-                        "\n====================Adversary==========================\n"
-                    )
-                    f.write("Classfier 1 => " + " ".join(words1) + "\t" +
-                            str(d_adv1) + "\n")
-                    f.write("Classfier 2 => " + " ".join(words2) + "\t" +
-                            str(d_adv2) + "\n")
-                    f.write(
-                        "========================================================\n"
-                    )
-                    f.write("\n".join(all_adv) + "\n")
-                    f.flush()
-                except Exception:
-                    print(premise_words)
-                    print(hypothesise_words)
-                    print("no adversary found for : \n {0} \n {1}\n\n". \
-                          format(" ".join(premise_words[i]), " ".join(hypothesise_words[i])))
-
-    gan_gen = gan_gen.to(Config.train_device)
-    inverter = inverter.to(Config.train_device)
-    Seq2Seq_model = Seq2Seq_model.to(Config.train_device)
 
 
 if __name__ == '__main__':
@@ -353,7 +280,7 @@ if __name__ == '__main__':
         total_loss_gan_g = 0
         total_loss_inv = 0
         logging(f'Training {epoch} epoch')
-        for x, x_mask, y in train_data:
+        for x, x_mask, y, _ in train_data:
             niter += 1
             total_loss_Seq2Seq += train_Seq2Seq(
                 (x, x_mask, y), Seq2Seq_model_bert, criterion_ce,
@@ -384,3 +311,4 @@ if __name__ == '__main__':
 
         # end of epoch --------------------------------
         # evaluation
+        
