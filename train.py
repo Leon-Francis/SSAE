@@ -2,7 +2,7 @@ import os
 import time
 from model import Seq2Seq_bert, MLP_G, MLP_D, MLP_I, JSDistance
 from baseline_model import Baseline_Model_Bert
-from data import Seq2Seq_DataSet4Test
+from data import Seq2Seq_DataSet
 from tools import logging
 from config import Config
 from torch import nn, optim
@@ -236,8 +236,8 @@ if __name__ == '__main__':
 
     # prepare dataset
     logging('preparing data...')
-    train_dataset_orig = Seq2Seq_DataSet4Test(Config.train_data_path)
-    test_dataset_orig = Seq2Seq_DataSet4Test(Config.test_data_path)
+    train_dataset_orig = Seq2Seq_DataSet(Config.train_data_path)
+    test_dataset_orig = Seq2Seq_DataSet(Config.test_data_path)
     train_data = DataLoader(train_dataset_orig,
                             batch_size=Config.batch_size,
                             shuffle=True,
