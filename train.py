@@ -1,6 +1,7 @@
 import os
 import time
 from model import Seq2Seq_bert, MLP_G, MLP_D, MLP_I, JSDistance
+from baseline_model import Baseline_Model_Bert
 from data import Seq2Seq_DataSet
 from tools import logging
 from config import Config
@@ -8,6 +9,7 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 import torch
 from transformers import BertTokenizer
+from perturb import perturb
 
 
 def train_Seq2Seq(train_data, model, criterion, optimizer, total_loss):
@@ -120,11 +122,14 @@ def train_inv(train_data,
     return errI
 
 
-def evaluate_generator(noise, Seq2Seq_model, gan_gen, dir):
+def evaluate_generator(Seq2Seq_model, gan_gen, dir):
     gan_gen.eval()
     Seq2Seq_model.eval()
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
     with torch.no_grad():
+        noise = torch.ones(Config.batch_size,
+                           Config.super_hidden_size).to(Config.train_device)
+        noise.data.normal_(0, 1)
         fake_hidden = gan_gen(noise)
         # outputs: [batch_size, sen_len, vocab_size]
         outputs = Seq2Seq_model.decode(fake_hidden)
@@ -137,11 +142,9 @@ def evaluate_generator(noise, Seq2Seq_model, gan_gen, dir):
                     tokenizer.convert_ids_to_tokens(outputs_idx[idx])) + '\n')
 
 
-def evaluate_inverter(test_data, Seq2Seq_model, gan_gen, gan_disc, inverter,
-                      dir):
+def evaluate_inverter(test_data, Seq2Seq_model, gan_gen, inverter, dir):
     Seq2Seq_model.eval()
     gan_gen.eval()
-    gan_disc.eval()
     inverter.eval()
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
     with torch.no_grad():
@@ -157,7 +160,11 @@ def evaluate_inverter(test_data, Seq2Seq_model, gan_gen, gan_disc, inverter,
 
             # sentence -> encoder -> inverter -> generator ->  decoder
             # eigd_outputs: [batch, seq_len, vocab_size]
-            eigd_outputs = Seq2Seq_model(x, x_mask, is_noise=True, generator=gan_gen, inverter=inverter)
+            eigd_outputs = Seq2Seq_model(x,
+                                         x_mask,
+                                         is_noise=True,
+                                         generator=gan_gen,
+                                         inverter=inverter)
             # eigd_idx: [batch_size, sen_len]
             eigd_idx = eigd_outputs.argmax(dim=2)
 
@@ -250,6 +257,8 @@ if __name__ == '__main__':
     gan_disc = MLP_D(Config.hidden_size, 1).to(Config.train_device)
     inverter = MLP_I(Config.hidden_size,
                      Config.super_hidden_size).to(Config.train_device)
+    baseline_model_bert = Baseline_Model_Bert().to(Config.train_device)
+    baseline_model_bert.load_state_dict(torch.load('output/baseline_model/baseline_model_bert'))
 
     # init optimizer
     optimizer_Seq2Seq = optim.Adam(Seq2Seq_model_bert.parameters(),
@@ -311,4 +320,21 @@ if __name__ == '__main__':
 
         # end of epoch --------------------------------
         # evaluation
-        
+        os.makedirs(cur_dir_models + f'/epoch{epoch}')
+        save_all_models(Seq2Seq_model_bert, gan_gen, gan_disc, inverter,
+                        cur_dir_models + f'/epoch{epoch}')
+        logging('epoch {epoch} evaluate Seq2Seq model')
+        Seq2Seq_acc = evaluate_Seq2Seq(
+            test_data, Seq2Seq_model_bert,
+            cur_dir_models + f'/epoch{epoch}_evaluate_Seq2Seq')
+        logging(f'Seq2Seq_model_bert acc = {Seq2Seq_acc}')
+        logging('epoch {epoch} evaluate generator model')
+        evaluate_generator(
+            Seq2Seq_model_bert, gan_gen,
+            cur_dir_models + f'/epoch{epoch}_evaluate_generator')
+        logging(f'epoch {epoch} evaluate inverter model')
+        evaluate_inverter(test_data, Seq2Seq_model_bert, gan_gen, inverter,
+                          cur_dir_models + f'/epoch{epoch}_evaluate_inverter')
+
+        logging(f'epoch {epoch} Staring perturb')
+        perturb(test_data, Seq2Seq_model_bert, gan_gen, inverter, baseline_model_bert, cur_dir + f'/epoch{epoch}_perturb')
