@@ -40,6 +40,22 @@ def write_standard_data(datas, labels, path, mod='w'):
             file.write(datas[i] + str(labels[i]) + '\n')
 
 
+def read_standard_data4Test(path):
+    data = []
+    labels = []
+    i = 100
+    with open(path, 'r', encoding='utf-8') as file:
+        for line in file:
+            i -= 1
+            line = line.strip('\n')
+            data.append(line[:-1])
+            labels.append(int(line[-1]))
+            if i == 0:
+                break
+    logging(f'loading data {len(data)} from {path}')
+    return data, labels
+
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
