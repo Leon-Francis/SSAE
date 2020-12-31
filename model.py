@@ -122,8 +122,11 @@ class MLP_D(nn.Module):
                             nn.Linear(mlp_layer_sizes[-1], output_size))
 
     def forward(self, X):
+        # X: [batch, seq_len, hidden]
+        X = X.view(-1, X.shape[2])
         logits = self.mlp(X)
-        return torch.mean(logits, dim=-1)
+        logits.squeeze(1)
+        return torch.mean(logits)
 
 
 class MLP_G(nn.Module):
@@ -143,7 +146,10 @@ class MLP_G(nn.Module):
                             nn.Linear(mlp_layer_sizes[-1], output_size))
 
     def forward(self, X):
+        # X: [batch, seq_len, super_hidden_size]
+        X = X.view(-1, X.shape[2])
         logits = self.mlp(X)
+        logits = logits.view(Config.batch_size, Config.sen_len, -1)
         return logits
 
 
@@ -164,7 +170,10 @@ class MLP_I(nn.Module):
                             nn.Linear(mlp_layer_sizes[-1], output_size))
 
     def forward(self, X):
+        # X: [batch, seq_len, hidden_size]
+        X = X.view(-1, X.shape[2])
         logits = self.mlp(X)
+        logits = logits.view(Config.batch_size, Config.sen_len, -1)
         return logits
 
 
