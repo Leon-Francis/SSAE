@@ -21,7 +21,7 @@ def perturb(data, Seq2Seq_model, gan_gen, inverter, baseline_model, dir):
             # z: [batch, seq_len, super_hidden_size]
             z = inverter(c).data
 
-            for i in range(Config.batch_size):
+            for i in range(len(x)):
                 f.write("==================================================\n")
                 f.write('Orginal sentence: \n')
                 f.write(' '.join(tokenizer.convert_ids_to_tokens(x[i])) +
