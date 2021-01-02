@@ -12,8 +12,8 @@ class Config:
     test_data_path = r'./dataset/AGNEWS/test.std'
     output_dir = r'./output'
 
-    epochs = 20
-    batch_size = 32
+    epochs = 5
+    batch_size = 64
 
     baseline_learning_rate = 1e-4
     Seq2Seq_learning_rate = 1e-4
