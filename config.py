@@ -13,7 +13,7 @@ class Config:
     output_dir = r'./output'
 
     epochs = 5
-    batch_size = 96
+    batch_size = 128
 
     baseline_learning_rate = 1e-4
     Seq2Seq_learning_rate = 1e-4
