@@ -100,7 +100,8 @@ def train_inv(train_data,
 
     fake_hidden = gan_gen(noise)
     inv_noise = inverter(fake_hidden)
-    errI = criterion_js(inv_noise.view(-1, inv_noise.shape[2]), noise.view(-1, noise.shape[2]))
+    errI = criterion_js(inv_noise.view(-1, inv_noise.shape[2]),
+                        noise.view(-1, noise.shape[2]))
 
     x, x_mask, y = train_data
     x, x_mask, y = x.to(Config.train_device), x_mask.to(
@@ -138,8 +139,7 @@ def evaluate_generator(Seq2Seq_model, gan_gen, dir):
         logging(f'Saving evaluate of generator outputs into {dir}')
         with open(dir, 'a') as f:
             for idx in outputs_idx:
-                f.write(' '.join(
-                    tokenizer.convert_ids_to_tokens(idx)) + '\n')
+                f.write(' '.join(tokenizer.convert_ids_to_tokens(idx)) + '\n')
 
 
 def evaluate_inverter(test_data, Seq2Seq_model, gan_gen, inverter, dir):
@@ -176,18 +176,20 @@ def evaluate_inverter(test_data, Seq2Seq_model, gan_gen, inverter, dir):
                             '\n')
                     f.write('------setence -> encoder -> decoder-------\n')
                     f.write(' '.join(
-                        tokenizer.convert_ids_to_tokens(Seq2Seq_idx[i])) + '\n')
+                        tokenizer.convert_ids_to_tokens(Seq2Seq_idx[i])) +
+                            '\n')
                     f.write(
                         '------sentence -> encoder -> inverter -> generator -> decoder-------\n'
                     )
-                    f.write(
-                        ' '.join(tokenizer.convert_ids_to_tokens(eigd_idx[i])) +
-                        '\n' * 2)
+                    f.write(' '.join(
+                        tokenizer.convert_ids_to_tokens(eigd_idx[i])) +
+                            '\n' * 2)
 
 
 def evaluate_Seq2Seq(test_data, Seq2Seq_model, dir):
     Seq2Seq_model.eval()
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    logging(f'Saving evaluate of Seq2Seq_model outputs into {dir}')
     with torch.no_grad():
         acc_sum = 0
         n = 0
@@ -199,7 +201,6 @@ def evaluate_Seq2Seq(test_data, Seq2Seq_model, dir):
             outputs_idx = logits.argmax(dim=2)
             acc_sum += (outputs_idx == y).float().sum().item()
             n += y.shape[0] * y.shape[1]
-            logging(f'Saving evaluate of Seq2Seq_model outputs into {dir}')
             with open(dir, 'a') as f:
                 for i in range(Config.batch_size):
                     f.write('-------orginal sentence----------\n')
@@ -260,6 +261,8 @@ if __name__ == '__main__':
     baseline_model_bert = Baseline_Model_Bert().to(Config.train_device)
     baseline_model_bert.load_state_dict(
         torch.load('output/baseline_model/baseline_model_bert.pt'))
+    Seq2Seq_model_bert.load_state_dict(
+        torch.load('output/Seq2Seq_model/1609511458/models/Seq2Seq_model_bert.pt'))
 
     # init optimizer
     optimizer_Seq2Seq = optim.Adam(Seq2Seq_model_bert.parameters(),

@@ -18,7 +18,7 @@ def train_Seq2Seq(train_data, test_data, model, criterion, optimizer):
         logging(f'epoch {epoch} train Seq2Seq model')
         model.train()
         loss_mean = 0.0
-        for x, x_mask, y in tqdm(train_data):
+        for x, x_mask, y, _ in tqdm(train_data):
             x, x_mask, y = x.to(Config.train_device), x_mask.to(
                 Config.train_device), y.to(Config.train_device)
             logits = model(x, x_mask, is_noise=True)
@@ -49,7 +49,7 @@ def eval_Seq2Seq(test_data, model):
         model.eval()
         acc_sum = 0
         n = 0
-        for x, x_mask, y in test_data:
+        for x, x_mask, y, _ in test_data:
             x, x_mask, y = x.to(Config.train_device), x_mask.to(
                 Config.train_device), y.to(Config.train_device)
             logits = model(x, x_mask, is_noise=False)
@@ -57,7 +57,7 @@ def eval_Seq2Seq(test_data, model):
             acc_sum += (outputs_idx == y).float().sum().item()
             n += y.shape[0] * y.shape[1]
             print('-' * Config.sen_len)
-            for i in range(20):
+            for i in range(len(y)):
                 print(' '.join(tokenizer.convert_ids_to_tokens(
                     outputs_idx[i])))
                 print(' '.join(tokenizer.convert_ids_to_tokens(y[i])))
