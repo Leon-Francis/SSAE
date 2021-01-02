@@ -170,7 +170,7 @@ def evaluate_inverter(test_data, Seq2Seq_model, gan_gen, inverter, dir):
 
             logging(f'Saving evaluate of inverter outputs into {dir}')
             with open(dir, 'a') as f:
-                for i in range(Config.batch_size):
+                for i in range(len(y)):
                     f.write('------orginal sentence---------\n')
                     f.write(' '.join(tokenizer.convert_ids_to_tokens(y[i])) +
                             '\n')
@@ -202,7 +202,7 @@ def evaluate_Seq2Seq(test_data, Seq2Seq_model, dir):
             acc_sum += (outputs_idx == y).float().sum().item()
             n += y.shape[0] * y.shape[1]
             with open(dir, 'a') as f:
-                for i in range(Config.batch_size):
+                for i in range(len(y)):
                     f.write('-------orginal sentence----------\n')
                     f.write(' '.join(tokenizer.convert_ids_to_tokens(y[i])) +
                             '\n')
