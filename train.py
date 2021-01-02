@@ -262,7 +262,8 @@ if __name__ == '__main__':
     baseline_model_bert.load_state_dict(
         torch.load('output/baseline_model/baseline_model_bert.pt'))
     Seq2Seq_model_bert.load_state_dict(
-        torch.load('output/Seq2Seq_model/1609511458/models/Seq2Seq_model_bert.pt'))
+        torch.load(
+            'output/Seq2Seq_model/1609511458/models/Seq2Seq_model_bert.pt'))
 
     # init optimizer
     optimizer_Seq2Seq = optim.Adam(Seq2Seq_model_bert.parameters(),
@@ -319,7 +320,7 @@ if __name__ == '__main__':
                 # decaying noise
                 Seq2Seq_model_bert.noise_std *= 0.995
                 logging(
-                    f'epoch {epoch}, niter {niter}:Loss_Seq2Seq: {total_loss_Seq2Seq / niter}, Loss_gan_g: {total_loss_gan_g / niter}, Loss_gan_d: {total_loss_gan_d / niter / 5}, Loss_inv: {total_loss_inv / niter / 5}'
+                    f'epoch {epoch}, niter {niter}:Loss_Seq2Seq: {total_loss_Seq2Seq / niter / Config.batch_size}, Loss_gan_g: {total_loss_gan_g / niter / Config.batch_size}, Loss_gan_d: {total_loss_gan_d / niter / Config.batch_size / 5}, Loss_inv: {total_loss_inv / niter / Config.batch_size / 5}'
                 )
 
         # end of epoch --------------------------------

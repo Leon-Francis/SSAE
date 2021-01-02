@@ -26,6 +26,8 @@ class Config:
     super_hidden_size = 100
     vocab_size = 30522
     sen_len = 70
+    # new
+    gan_adv_learning_rate = 1e-5
 
 
 if __name__ == "__main__":

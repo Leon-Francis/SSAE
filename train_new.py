@@ -1,6 +1,6 @@
 import os
 import time
-from model import Seq2Seq_bert, MLP_G, MLP_D, MLP_I, JSDistance
+from model import Seq2Seq_bert, MLP_G, MLP_A, JSDistance
 from baseline_model import Baseline_Model_Bert
 from data import Seq2Seq_DataSet
 from tools import logging
@@ -30,69 +30,18 @@ def train_Seq2Seq(train_data, model, criterion, optimizer, total_loss):
     return total_loss
 
 
-def train_gan_d(train_data, Seq2Seq_model, gan_gen, gan_disc,
-                optimizer_Seq2Seq, optimizer_gan_d):
-    for p in gan_disc.parameters():
-        p.data.clamp_(-0.01, 0.01)
-    Seq2Seq_model.train()
-    optimizer_Seq2Seq.zero_grad()
-    gan_disc.train()
-    optimizer_gan_d.zero_grad()
-    x, x_mask, y = train_data
-    x, x_mask, y = x.to(Config.train_device), x_mask.to(
-        Config.train_device), y.to(Config.train_device)
-    # real_hidden: [batch_size, sen_len, hidden]
-    real_hidden = Seq2Seq_model(x, x_mask, is_noise=False, encode_only=True)
-
-    errD_real = gan_disc(real_hidden)
-    errD_real.backward()
-
-    noise = torch.ones(Config.batch_size, Config.sen_len,
-                       Config.super_hidden_size).to(Config.train_device)
-    noise.data.normal_(0, 1)
-
-    fake_hidden = gan_gen(noise)
-    errD_fake = gan_disc(fake_hidden.detach())
-    errD_fake *= -1.0
-    errD_fake.backward()
-
-    nn.utils.clip_grad_norm_(Seq2Seq_model.parameters(), 1)
-
-    optimizer_Seq2Seq.step()
-    optimizer_gan_d.step()
-
-    errD = -(errD_real - errD_fake)
-    return errD
-
-
-def train_gan_g(gan_gen, gan_disc, optimizer_gan_g):
-    gan_gen.train()
-    optimizer_gan_g.zero_grad()
-
-    noise = torch.ones(Config.batch_size, Config.sen_len,
-                       Config.super_hidden_size).to(Config.train_device)
-    noise.data.normal_(0, 1)
-
-    fake_hidden = gan_gen(noise)
-    errG = gan_disc(fake_hidden)
-
-    errG.backward()
-    optimizer_gan_g.step()
-
-    return errG
-
-
-def train_inv(train_data,
-              Seq2Seq_model,
-              gan_gen,
-              inverter,
-              optimizer_inv,
-              criterion_ce,
-              criterion_js,
-              criterion_mse,
-              gamma=0.5):
-    inverter.train()
-    optimizer_inv.zero_grad()
+def train_gan_adv(train_data,
+                  Seq2Seq_model,
+                  gan_gen,
+                  gan_adv,
+                  baseline_model,
+                  optimizer_gan_a,
+                  criterion_ce,
+                  criterion_js,
+                  criterion_mse,
+                  gamma=0.5):
+    gan_adv.train()
+    optimizer_gan_a.zero_grad()
 
     noise = torch.ones(Config.batch_size, Config.sen_len,
                        Config.super_hidden_size).to(Config.train_device)
@@ -121,6 +70,23 @@ def train_inv(train_data,
     optimizer_inv.step()
 
     return errI
+
+
+def train_gan_g(gan_gen, gan_disc, optimizer_gan_g):
+    gan_gen.train()
+    optimizer_gan_g.zero_grad()
+
+    noise = torch.ones(Config.batch_size, Config.sen_len,
+                       Config.super_hidden_size).to(Config.train_device)
+    noise.data.normal_(0, 1)
+
+    fake_hidden = gan_gen(noise)
+    errG = gan_disc(fake_hidden)
+
+    errG.backward()
+    optimizer_gan_g.step()
+
+    return errG
 
 
 def evaluate_generator(Seq2Seq_model, gan_gen, dir):
@@ -170,7 +136,7 @@ def evaluate_inverter(test_data, Seq2Seq_model, gan_gen, inverter, dir):
 
             logging(f'Saving evaluate of inverter outputs into {dir}')
             with open(dir, 'a') as f:
-                for i in range(Config.batch_size):
+                for i in range(len(y)):
                     f.write('------orginal sentence---------\n')
                     f.write(' '.join(tokenizer.convert_ids_to_tokens(y[i])) +
                             '\n')
@@ -202,7 +168,7 @@ def evaluate_Seq2Seq(test_data, Seq2Seq_model, dir):
             acc_sum += (outputs_idx == y).float().sum().item()
             n += y.shape[0] * y.shape[1]
             with open(dir, 'a') as f:
-                for i in range(Config.batch_size):
+                for i in range(len(y)):
                     f.write('-------orginal sentence----------\n')
                     f.write(' '.join(tokenizer.convert_ids_to_tokens(y[i])) +
                             '\n')
@@ -225,11 +191,11 @@ def save_all_models(Seq2Seq_model, gan_gen, gan_disc, inverter, dir):
 
 if __name__ == '__main__':
     logging('Using cuda device gpu: ' + Config.train_device.type)
-    cur_dir = Config.output_dir + '/gan_model/' + str(int(time.time()))
+    cur_dir = Config.output_dir + '/gan_model_new/' + str(int(time.time()))
     cur_dir_models = cur_dir + '/models'
     # make output directory if it doesn't already exist
-    if not os.path.isdir(Config.output_dir + '/gan_model'):
-        os.makedirs(Config.output_dir + '/gan_model')
+    if not os.path.isdir(Config.output_dir + '/gan_model_new'):
+        os.makedirs(Config.output_dir + '/gan_model_new')
     if not os.path.isdir(cur_dir):
         os.makedirs(cur_dir)
         os.makedirs(cur_dir_models)
@@ -253,28 +219,29 @@ if __name__ == '__main__':
     logging('init models, optimizer, criterion...')
     Seq2Seq_model_bert = Seq2Seq_bert(hidden_size=Config.hidden_size).to(
         Config.train_device)
-    gan_gen = MLP_G(Config.super_hidden_size,
-                    Config.hidden_size).to(Config.train_device)
-    gan_disc = MLP_D(Config.hidden_size, 1).to(Config.train_device)
-    inverter = MLP_I(Config.hidden_size,
-                     Config.super_hidden_size).to(Config.train_device)
+    gan_gen = MLP_G(Config.super_hidden_size * Config.sen_len,
+                    Config.hidden_size * Config.sen_len).to(
+                        Config.train_device)
+
+    gan_adv = MLP_A(Config.hidden_size * Config.sen_len,
+                    Config.super_hidden_size * Config.sen_len).to(
+                        Config.train_device)
     baseline_model_bert = Baseline_Model_Bert().to(Config.train_device)
+    # load pretrained
     baseline_model_bert.load_state_dict(
         torch.load('output/baseline_model/baseline_model_bert.pt'))
     Seq2Seq_model_bert.load_state_dict(
-        torch.load('output/Seq2Seq_model/1609511458/models/Seq2Seq_model_bert.pt'))
+        torch.load(
+            'output/Seq2Seq_model/1609511458/models/Seq2Seq_model_bert.pt'))
 
     # init optimizer
     optimizer_Seq2Seq = optim.Adam(Seq2Seq_model_bert.parameters(),
                                    lr=Config.Seq2Seq_learning_rate)
-    optimizer_inv = optim.Adam(inverter.parameters(),
-                               lr=Config.inverter_learning_rate,
-                               betas=Config.optim_betas)
     optimizer_gan_g = optim.Adam(gan_gen.parameters(),
                                  lr=Config.gan_gen_learning_rate,
                                  betas=Config.optim_betas)
-    optimizer_gan_d = optim.Adam(gan_disc.parameters(),
-                                 lr=Config.gan_disc_learning_rate,
+    optimizer_gan_a = optim.Adam(gan_adv.parameters(),
+                                 lr=Config.gan_adv_learning_rate,
                                  betas=Config.optim_betas)
     # init criterion
     criterion_ce = nn.CrossEntropyLoss().to(Config.train_device)
@@ -319,7 +286,7 @@ if __name__ == '__main__':
                 # decaying noise
                 Seq2Seq_model_bert.noise_std *= 0.995
                 logging(
-                    f'epoch {epoch}, niter {niter}:Loss_Seq2Seq: {total_loss_Seq2Seq / niter}, Loss_gan_g: {total_loss_gan_g / niter}, Loss_gan_d: {total_loss_gan_d / niter / 5}, Loss_inv: {total_loss_inv / niter / 5}'
+                    f'epoch {epoch}, niter {niter}:Loss_Seq2Seq: {total_loss_Seq2Seq / niter / Config.batch_size}, Loss_gan_g: {total_loss_gan_g / niter / Config.batch_size}, Loss_gan_d: {total_loss_gan_d / niter / Config.batch_size / 5}, Loss_inv: {total_loss_inv / niter / Config.batch_size / 5}'
                 )
 
         # end of epoch --------------------------------
