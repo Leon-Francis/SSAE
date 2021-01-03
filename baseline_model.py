@@ -11,7 +11,7 @@ class Baseline_Model_Bert(nn.Module):
         self.bert_model = BertModel.from_pretrained('bert-base-uncased', config=self.bert_config)
         for param in self.bert_model.parameters():
             param.requires_grad = False
-        self.linear = nn.Linear(768, Config.label_num)
+        self.linear = nn.Linear(Config.hidden_size, Config.label_num)
         for params in self.linear.parameters():
             init.normal_(params, mean=0, std=0.01)
 

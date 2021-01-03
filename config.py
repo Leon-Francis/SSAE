@@ -12,7 +12,7 @@ class Config:
     test_data_path = r'./dataset/AGNEWS/test.std'
     output_dir = r'./output'
 
-    epochs = 5
+    epochs = 10
     batch_size = 128
 
     baseline_learning_rate = 1e-4
@@ -23,7 +23,7 @@ class Config:
     optim_betas = (0.9, 0.999)
 
     hidden_size = 768
-    super_hidden_size = 100
+    super_hidden_size = 500
     vocab_size = 30522
     sen_len = 70
     # new

@@ -74,7 +74,7 @@ class Seq2Seq_bert(nn.Module):
                 is_noise=False,
                 encode_only=False,
                 generator=None,
-                inverter=None):
+                adversary=None):
         """forward
 
         Args:
@@ -83,7 +83,7 @@ class Seq2Seq_bert(nn.Module):
             is_noise (bool, optional): whether add noise. Defaults to False.
             encode_only (bool, optional):  Defaults to False.
             generator (func, optional):  Defaults to None.
-            inverter (func, optional):  Defaults to None.
+            adversary (func, optional):  Defaults to None.
 
         Returns:
             torch.tensor: outputs [batch, seq_len, vocab_size]
@@ -96,7 +96,7 @@ class Seq2Seq_bert(nn.Module):
         if not generator:
             decoded = self.decode(hidden)
         else:
-            z_hat = inverter(hidden)
+            z_hat = adversary(hidden)
             c_hat = generator(z_hat)
             decoded = self.decode(c_hat)
         return decoded
@@ -122,7 +122,7 @@ class MLP_G(nn.Module):
         # X: [batch, seq_len, super_hidden_size]
         X = X.view(X.shape[0], -1)
         logits = self.mlp(X)
-        logits = logits.view(-1, Config.sen_len, 768)
+        logits = logits.view(-1, Config.sen_len, Config.hidden_size)
         return logits
 
 
@@ -146,7 +146,7 @@ class MLP_A(nn.Module):
         # X: [batch, seq_len, hidden_size]
         X = X.view(X.shape[0], -1)
         logits = self.mlp(X)
-        logits = logits.view(-1, Config.sen_len, 100)
+        logits = logits.view(-1, Config.sen_len, Config.super_hidden_size)
         return logits
 
 

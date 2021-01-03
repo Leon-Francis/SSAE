@@ -3,11 +3,11 @@ from transformers import BertTokenizer
 import torch
 
 
-def perturb(data, Seq2Seq_model, gan_gen, inverter, baseline_model, dir):
+def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir):
     # Turn on evaluation mode which disables dropout.
     Seq2Seq_model.eval()
     gan_gen.eval()
-    inverter.eval()
+    gan_adv.eval()
     baseline_model.eval()
     attack_succeeded_num = 0
     with open(dir, "a") as f:
@@ -19,7 +19,7 @@ def perturb(data, Seq2Seq_model, gan_gen, inverter, baseline_model, dir):
             # c: [batch, sen_len, hidden_size]
             c = Seq2Seq_model(x, x_mask, is_noise=False, encode_only=True)
             # z: [batch, seq_len, super_hidden_size]
-            z = inverter(c).data
+            z = gan_adv(c)
 
             for i in range(len(x)):
                 f.write("==================================================\n")
@@ -50,12 +50,16 @@ def perturb(data, Seq2Seq_model, gan_gen, inverter, baseline_model, dir):
                     for i, perturb_x_sample in enumerate(perturb_x):
                         f.write(' '.join(
                             tokenizer.convert_ids_to_tokens(perturb_x_sample)))
+                        if successed_mask[i]:
+                            f.write('    attact successed!')
+                        else:
+                            f.write('    attact failed!')
                         f.write('\n')
                     f.write('\n============================================\n')
                     f.flush()
                 else:
                     f.write('==============Attack Failed ==================\n')
-                    f.write(f'20 samples try for {counter} times\n')
+                    f.write(f'5 samples try for {counter} times\n')
                     f.write('\nAll attack samples as follows: \n')
                     for i, perturb_x_sample in enumerate(perturb_x):
                         f.write(' '.join(
