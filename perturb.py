@@ -9,63 +9,67 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir):
     gan_gen.eval()
     gan_adv.eval()
     baseline_model.eval()
-    attack_succeeded_num = 0
-    with open(dir, "a") as f:
-        for x, x_mask, y, label in data:
-            x, x_mask, y, label = x.to(Config.train_device), x_mask.to(
-                Config.train_device), y.to(Config.train_device), label.to(
-                    Config.train_device)
-            tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-            # c: [batch, sen_len, hidden_size]
-            c = Seq2Seq_model(x, x_mask, is_noise=False, encode_only=True)
-            # z: [batch, seq_len, super_hidden_size]
-            z = gan_adv(c)
+    with torch.no_grad():
+        attack_succeeded_num = 0
+        with open(dir, "a") as f:
+            for x, x_mask, y, label in data:
+                x, x_mask, y, label = x.to(Config.train_device), x_mask.to(
+                    Config.train_device), y.to(Config.train_device), label.to(
+                        Config.train_device)
+                tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+                # c: [batch, sen_len, hidden_size]
+                c = Seq2Seq_model(x, x_mask, is_noise=False, encode_only=True)
+                # z: [batch, seq_len, super_hidden_size]
+                z = gan_adv(c)
 
-            for i in range(len(x)):
-                f.write("==================================================\n")
-                f.write('Orginal sentence: \n')
-                f.write(' '.join(tokenizer.convert_ids_to_tokens(x[i])) +
-                        "\n" * 2)
+                for i in range(len(x)):
+                    f.write("==================================================\n")
+                    f.write('Orginal sentence: \n')
+                    f.write(' '.join(tokenizer.convert_ids_to_tokens(x[i])) +
+                            "\n" * 2)
 
-                perturb_x, perturb_x_mask, perturb_label, successed_mask, bound_distence, counter, successed = search_fast(
-                    Seq2Seq_model,
-                    gan_gen,
-                    baseline_model,
-                    label[i],
-                    z[i],
-                    samples_num=5)
+                    perturb_x, perturb_x_mask, perturb_label, successed_mask, bound_distence, counter, successed = search_fast(
+                        Seq2Seq_model,
+                        gan_gen,
+                        baseline_model,
+                        label[i],
+                        z[i],
+                        samples_num=5)
 
-                if successed:
-                    attack_succeeded_num += 1
-                    f.write('==============Attark succeed!=================\n')
-                    f.write(f'5 samples try for {counter} times\n')
-                    f.write('Attack successed sample: \n')
-                    for i, successed_x in enumerate(
-                            perturb_x.masked_select(successed_mask)):
-                        f.write(' '.join(
-                            tokenizer.convert_ids_to_tokens(successed_x)))
-                        f.write('\n')
+                    if successed:
+                        attack_succeeded_num += 1
+                        f.write(
+                            '==============Attark succeed!=================\n')
+                        f.write(f'5 samples try for {counter} times\n')
+                        f.write('Attack successed sample: \n')
+                        for i, successed_x in enumerate(
+                                perturb_x.masked_select(successed_mask)):
+                            f.write(' '.join(
+                                tokenizer.convert_ids_to_tokens(successed_x)))
+                            f.write('\n')
 
-                    f.write('\nAll attack samples as follows: \n')
-                    for i, perturb_x_sample in enumerate(perturb_x):
-                        f.write(' '.join(
-                            tokenizer.convert_ids_to_tokens(perturb_x_sample)))
-                        if successed_mask[i]:
-                            f.write('    attact successed!')
-                        else:
-                            f.write('    attact failed!')
-                        f.write('\n')
-                    f.write('\n============================================\n')
-                    f.flush()
-                else:
-                    f.write('==============Attack Failed ==================\n')
-                    f.write(f'5 samples try for {counter} times\n')
-                    f.write('\nAll attack samples as follows: \n')
-                    for i, perturb_x_sample in enumerate(perturb_x):
-                        f.write(' '.join(
-                            tokenizer.convert_ids_to_tokens(perturb_x_sample)))
-                        f.write('\n')
-    return attack_succeeded_num / len(data)
+                        f.write('\nAll attack samples as follows: \n')
+                        for i, perturb_x_sample in enumerate(perturb_x):
+                            f.write(' '.join(
+                                tokenizer.convert_ids_to_tokens(perturb_x_sample)))
+                            if successed_mask[i]:
+                                f.write('    attact successed!')
+                            else:
+                                f.write('    attact failed!')
+                            f.write('\n')
+                        f.write(
+                            '\n============================================\n')
+                        f.flush()
+                    else:
+                        f.write(
+                            '==============Attack Failed ==================\n')
+                        f.write(f'5 samples try for {counter} times\n')
+                        f.write('\nAll attack samples as follows: \n')
+                        for i, perturb_x_sample in enumerate(perturb_x):
+                            f.write(' '.join(
+                                tokenizer.convert_ids_to_tokens(perturb_x_sample)))
+                            f.write('\n')
+            f.write(f'{attack_succeeded_num / len(data)}')
 
 
 def search_fast(Seq2Seq_model,

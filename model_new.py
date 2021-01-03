@@ -166,12 +166,12 @@ class LSTM_G(nn.Module):
     def initHidden(self, batch_size):
         if self.lstm.bidirectional:
             return (torch.rand(self.num_layers * 2, batch_size,
-                               self.hidden_size),
+                               self.hidden_size).to(Config.train_device),
                     torch.rand(self.num_layers * 2, batch_size,
-                               self.hidden_size))
+                               self.hidden_size).to(Config.train_device))
         else:
-            return (torch.rand(self.num_layers, batch_size, self.hidden_size),
-                    torch.rand(self.num_layers, batch_size, self.hidden_size))
+            return (torch.rand(self.num_layers, batch_size, self.hidden_size).to(Config.train_device),
+                    torch.rand(self.num_layers, batch_size, self.hidden_size).to(Config.train_device))
 
     def forward(self, inputs):
         # input: [batch_size, sen_len, super_hidden_size]
@@ -196,12 +196,12 @@ class LSTM_A(nn.Module):
     def initHidden(self, batch_size):
         if self.lstm.bidirectional:
             return (torch.rand(self.num_layers * 2, batch_size,
-                               self.hidden_size),
+                               self.hidden_size).to(Config.train_device),
                     torch.rand(self.num_layers * 2, batch_size,
-                               self.hidden_size))
+                               self.hidden_size).to(Config.train_device))
         else:
-            return (torch.rand(self.num_layers, batch_size, self.hidden_size),
-                    torch.rand(self.num_layers, batch_size, self.hidden_size))
+            return (torch.rand(self.num_layers, batch_size, self.hidden_size).to(Config.train_device),
+                    torch.rand(self.num_layers, batch_size, self.hidden_size).to(Config.train_device))
 
     def forward(self, inputs):
         # input: [batch_size, sen_len, hidden_size]

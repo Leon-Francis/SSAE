@@ -32,6 +32,7 @@ def train_Seq2Seq(train_data, model, criterion, optimizer, total_loss):
 
 def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
                 optimizer_gan_a, criterion_ce):
+    gan_gen.train()
     gan_adv.train()
     optimizer_gan_a.zero_grad()
 
@@ -65,6 +66,7 @@ def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
 def train_gan_g(train_data, Seq2Seq_model, gan_gen, gan_adv, criterion_mse,
                 optimizer_gan_g):
     gan_gen.train()
+    gan_adv.train()
     optimizer_gan_g.zero_grad()
 
     x, x_mask, y, _ = train_data
