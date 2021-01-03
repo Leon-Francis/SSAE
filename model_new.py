@@ -150,6 +150,66 @@ class MLP_A(nn.Module):
         return logits
 
 
+class LSTM_G(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers, dropout=0):
+        super(LSTM_G, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.dropout = dropout
+        self.lstm = nn.LSTM(input_size=self.input_size,
+                            hidden_size=self.hidden_size,
+                            num_layers=self.num_layers,
+                            dropout=self.dropout,
+                            batch_first=True)
+
+    def initHidden(self, batch_size):
+        if self.lstm.bidirectional:
+            return (torch.rand(self.num_layers * 2, batch_size,
+                               self.hidden_size),
+                    torch.rand(self.num_layers * 2, batch_size,
+                               self.hidden_size))
+        else:
+            return (torch.rand(self.num_layers, batch_size, self.hidden_size),
+                    torch.rand(self.num_layers, batch_size, self.hidden_size))
+
+    def forward(self, inputs):
+        # input: [batch_size, sen_len, super_hidden_size]
+        self.hidden = self.initHidden(inputs.shape[0])
+        out, self.hidden = self.lstm(inputs, self.hidden)
+        return out
+
+
+class LSTM_A(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers, dropout=0):
+        super(LSTM_A, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.dropout = dropout
+        self.lstm = nn.LSTM(input_size=self.input_size,
+                            hidden_size=self.hidden_size,
+                            num_layers=self.num_layers,
+                            dropout=self.dropout,
+                            batch_first=True)
+
+    def initHidden(self, batch_size):
+        if self.lstm.bidirectional:
+            return (torch.rand(self.num_layers * 2, batch_size,
+                               self.hidden_size),
+                    torch.rand(self.num_layers * 2, batch_size,
+                               self.hidden_size))
+        else:
+            return (torch.rand(self.num_layers, batch_size, self.hidden_size),
+                    torch.rand(self.num_layers, batch_size, self.hidden_size))
+
+    def forward(self, inputs):
+        # input: [batch_size, sen_len, hidden_size]
+        self.hidden = self.initHidden(inputs.shape[0])
+        out, self.hidden = self.lstm(inputs, self.hidden)
+        return out
+
+
 class JSDistance(nn.Module):
     def __init__(self, mean=0, std=1, epsilon=1e-5):
         super(JSDistance, self).__init__()

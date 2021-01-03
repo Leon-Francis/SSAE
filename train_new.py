@@ -1,6 +1,6 @@
 import os
 import time
-from model_new import Seq2Seq_bert, MLP_G, MLP_A
+from model_new import Seq2Seq_bert, LSTM_G, LSTM_A
 from baseline_model import Baseline_Model_Bert
 from data import Seq2Seq_DataSet
 from tools import logging
@@ -73,8 +73,8 @@ def train_gan_g(train_data, Seq2Seq_model, gan_gen, gan_adv, criterion_mse,
     # fake_hidden: [batch, sen_len, hidden]
     fake_hidden = gan_gen(gan_adv(real_hidden))
 
-    loss = criterion_mse(real_hidden.view(real_hidden.shape[0], -1),
-                         fake_hidden.view(fake_hidden.shape[0], -1))
+    loss = criterion_mse(real_hidden.reshape(real_hidden.shape[0], -1),
+                         fake_hidden.reshape(fake_hidden.shape[0], -1))
 
     loss.backward()
     optimizer_gan_g.step()
@@ -87,6 +87,7 @@ def evaluate_gan(test_data, Seq2Seq_model, gan_gen, gan_adv, dir):
     gan_gen.eval()
     gan_adv.eval()
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    logging(f'Saving evaluate of gan outputs into {dir}')
     with torch.no_grad():
 
         for x, x_mask, y, _ in test_data:
@@ -108,7 +109,6 @@ def evaluate_gan(test_data, Seq2Seq_model, gan_gen, gan_adv, dir):
             # eagd_idx: [batch_size, sen_len]
             eagd_idx = eagd_outputs.argmax(dim=2)
 
-            logging(f'Saving evaluate of gan outputs into {dir}')
             with open(dir, 'a') as f:
                 for i in range(len(y)):
                     f.write('------orginal sentence---------\n')
@@ -167,6 +167,8 @@ if __name__ == '__main__':
     cur_dir = Config.output_dir + '/gan_model_new/' + str(int(time.time()))
     cur_dir_models = cur_dir + '/models'
     # make output directory if it doesn't already exist
+    if not os.path.isdir(Config.output_dir):
+        os.makedirs(Config.output_dir)
     if not os.path.isdir(Config.output_dir + '/gan_model_new'):
         os.makedirs(Config.output_dir + '/gan_model_new')
     if not os.path.isdir(cur_dir):
@@ -192,13 +194,13 @@ if __name__ == '__main__':
     logging('init models, optimizer, criterion...')
     Seq2Seq_model_bert = Seq2Seq_bert(hidden_size=Config.hidden_size).to(
         Config.train_device)
-    gan_gen = MLP_G(Config.super_hidden_size * Config.sen_len,
-                    Config.hidden_size * Config.sen_len).to(
-                        Config.train_device)
+    gan_gen = LSTM_G(Config.super_hidden_size,
+                     Config.hidden_size,
+                     num_layers=3).to(Config.train_device)
 
-    gan_adv = MLP_A(Config.hidden_size * Config.sen_len,
-                    Config.super_hidden_size * Config.sen_len).to(
-                        Config.train_device)
+    gan_adv = LSTM_A(Config.hidden_size,
+                     Config.super_hidden_size,
+                     num_layers=3).to(Config.train_device)
     baseline_model_bert = Baseline_Model_Bert().to(Config.train_device)
     # load pretrained
     baseline_model_bert.load_state_dict(
@@ -270,6 +272,12 @@ if __name__ == '__main__':
         evaluate_gan(test_data, Seq2Seq_model_bert, gan_gen, gan_adv,
                      cur_dir_models + f'/epoch{epoch}_evaluate_gan')
 
-        logging(f'epoch {epoch} Staring perturb')
-        perturb(test_data, Seq2Seq_model_bert, gan_gen, gan_adv,
-                baseline_model_bert, cur_dir + f'/epoch{epoch}_perturb')
+        if (epoch + 1) % 5 == 0:
+            logging(f'epoch {epoch} Staring perturb')
+            perturb(test_data, Seq2Seq_model_bert, gan_gen, gan_adv,
+                    baseline_model_bert, cur_dir + f'/epoch{epoch}_perturb')
+
+# hidden: [batch_size, sen_len, hidden_size]
+# generator: LSTM
+# adversary: LSTM
+# Seq2Seq_model_bert loaded pertrained and without train

@@ -5,7 +5,7 @@ class Config:
     """configuration
     """
 
-    train_device = torch.device('cuda:1')
+    train_device = torch.device('cuda:0')
     dataset_list = ['IMDB', 'AGNEWS', 'YAHOO']
     label_num = 4
     train_data_path = r'./dataset/AGNEWS/train.std'
