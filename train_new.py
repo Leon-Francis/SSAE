@@ -119,13 +119,13 @@ def evaluate_gan(test_data, Seq2Seq_model, gan_gen, gan_adv, dir):
                     f.write('------setence -> encoder -> decoder-------\n')
                     f.write(' '.join(
                         tokenizer.convert_ids_to_tokens(Seq2Seq_idx[i])) +
-                            '\n')
+                        '\n')
                     f.write(
                         '------sentence -> encoder -> inverter -> generator -> decoder-------\n'
                     )
                     f.write(' '.join(
                         tokenizer.convert_ids_to_tokens(eagd_idx[i])) +
-                            '\n' * 2)
+                        '\n' * 2)
 
 
 def evaluate_Seq2Seq(test_data, Seq2Seq_model, dir):
@@ -152,7 +152,7 @@ def evaluate_Seq2Seq(test_data, Seq2Seq_model, dir):
                         '-------sentence -> encoder -> decoder----------\n')
                     f.write(' '.join(
                         tokenizer.convert_ids_to_tokens(outputs_idx[i])) +
-                            '\n' * 2)
+                        '\n' * 2)
 
         return acc_sum / n
 
@@ -162,6 +162,17 @@ def save_all_models(Seq2Seq_model, gan_gen, gan_adv, dir):
     torch.save(Seq2Seq_model.state_dict(), dir + '/Seq2Seq_model.pt')
     torch.save(gan_gen.state_dict(), dir + '/gan_gen.pt')
     torch.save(gan_adv.state_dict(), dir + '/gan_adv.pt')
+
+
+def save_config(dir):
+    with open(dir, 'w') as f:
+        f.write(f'Config.train_device:{Config.train_device}\n')
+        f.write(f'Config.train_data_path:{Config.train_data_path}\n')
+        f.write(f'Config.epochs:{Config.epochs}\n')
+        f.write(f'Config.batch_size:{Config.batch_size}\n')
+        f.write(f'Config.hidden_size:{Config.hidden_size}\n')
+        f.write(f'Config.super_hidden_size:{Config.super_hidden_size}\n')
+        f.write(f'Config.sen_len:{Config.sen_len}\n')
 
 
 if __name__ == '__main__':
@@ -177,6 +188,7 @@ if __name__ == '__main__':
         os.makedirs(cur_dir)
         os.makedirs(cur_dir_models)
     logging('Saving into directory' + cur_dir)
+    save_config(cur_dir + '/config.log')
 
     # prepare dataset
     logging('preparing data...')
