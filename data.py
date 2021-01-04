@@ -21,7 +21,7 @@ class Baseline_Dataset(Dataset):
         logging(f'{self.path} in data2tokens')
         for sen in self.datas:
             tokens = self.tokenizer.tokenize(sen)[:Config.sen_len - 2]
-            self.data_tokens.append(['CLS'] + tokens + ['SEP'])
+            self.data_tokens.append(['[CLS]'] + tokens + ['[SEP]'])
 
     def token2idx(self):
         logging(f'{self.path} in token2idx')
@@ -73,7 +73,7 @@ class Seq2Seq_DataSet(Dataset):
             data_tokens = self.tokenizer.tokenize(sen)[:Config.sen_len - 1]
             data_tokens.append('[SEP]')
             self.data_tokens.append(data_tokens)
-            label_tokens = ['CLS']
+            label_tokens = ['[CLS]']
             label_tokens += self.tokenizer.tokenize(sen)[:Config.sen_len - 1]
             self.label_tokens.append(label_tokens)
 
@@ -137,7 +137,7 @@ class Seq2Seq_DataSet4Test(Dataset):
             data_tokens = self.tokenizer.tokenize(sen)[:Config.sen_len - 1]
             data_tokens.append('[SEP]')
             self.data_tokens.append(data_tokens)
-            label_tokens = ['CLS']
+            label_tokens = ['[CLS]']
             label_tokens += self.tokenizer.tokenize(sen)[:Config.sen_len - 1]
             self.label_tokens.append(label_tokens)
 
