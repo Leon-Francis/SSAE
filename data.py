@@ -70,8 +70,12 @@ class Seq2Seq_DataSet(Dataset):
     def data2tokens(self):
         logging(f'{self.path} in data2tokens')
         for sen in self.datas:
-            self.data_tokens.append(self.tokenizer.tokenize(sen[:Config.sen_len - 1] + ' [SEP]'))
-            self.label_tokens.append(self.tokenizer.tokenize('[CLS] ' + sen[:Config.sen_len - 1]))
+            data_tokens = self.tokenizer.tokenize(sen)[:Config.sen_len - 1]
+            data_tokens.append('[SEP]')
+            self.data_tokens.append(data_tokens)
+            label_tokens = ['CLS']
+            label_tokens += self.tokenizer.tokenize(sen)[:Config.sen_len - 1]
+            self.label_tokens.append(label_tokens)
 
     def token2idx(self):
         logging(f'{self.path} in token2idx')
@@ -130,8 +134,12 @@ class Seq2Seq_DataSet4Test(Dataset):
     def data2tokens(self):
         logging(f'{self.path} in data2tokens')
         for sen in self.datas:
-            self.data_tokens.append(self.tokenizer.tokenize(sen[:Config.sen_len - 1] + ' [SEP]'))
-            self.label_tokens.append(self.tokenizer.tokenize('[CLS] ' + sen[:Config.sen_len - 1]))
+            data_tokens = self.tokenizer.tokenize(sen)[:Config.sen_len - 1]
+            data_tokens.append('[SEP]')
+            self.data_tokens.append(data_tokens)
+            label_tokens = ['CLS']
+            label_tokens += self.tokenizer.tokenize(sen)[:Config.sen_len - 1]
+            self.label_tokens.append(label_tokens)
 
     def token2idx(self):
         logging(f'{self.path} in token2idx')
