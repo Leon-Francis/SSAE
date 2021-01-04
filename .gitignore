@@ -3,3 +3,5 @@ dataset/
 .vscode/
 nohup.out
 output/
+*.log
+*.out
