@@ -5,7 +5,7 @@ class Config:
     """configuration
     """
 
-    train_device = torch.device('cuda:0')
+    train_device = torch.device('cuda:1')
     dataset_list = ['IMDB', 'AGNEWS', 'YAHOO']
     label_num = 4
     train_data_path = r'./dataset/AGNEWS/train.std'
@@ -25,7 +25,7 @@ class Config:
     hidden_size = 768
     super_hidden_size = 500
     vocab_size = 30522
-    sen_len = 70
+    sen_len = 25
     # new
     gan_adv_learning_rate = 1e-5
 
