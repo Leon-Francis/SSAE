@@ -78,7 +78,7 @@ def search_fast(Seq2Seq_model,
                 label,
                 z,
                 samples_num=5,
-                right=0.005):
+                right=0.5):
     """search for adversary sample
 
     Args:
@@ -116,8 +116,8 @@ def search_fast(Seq2Seq_model,
             # mask before [SEP]
             for i in range(perturb_x.shape[0]):
                 for word_idx in range(perturb_x.shape[1]):
-                    if perturb_x[i][word_idx].data == 102:
-                        perturb_x_mask[i][word_idx + 1:] = 0
+                    if perturb_x[i][word_idx].data == 0:
+                        perturb_x_mask[i][word_idx] = 0
                         break
             perturb_x_mask = perturb_x_mask.to(Config.train_device)
             # perturb_label: [samples_num]
