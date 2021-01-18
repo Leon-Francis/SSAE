@@ -44,13 +44,14 @@ def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
                               generator=gan_gen,
                               adversary=gan_adv).argmax(dim=2)
     # perturb_x_mask: [batch, seq_len]
-    perturb_x_mask = torch.ones(perturb_x.shape)
-    # mask before [SEP]
-    for i in range(perturb_x.shape[0]):
-        for word_idx in range(perturb_x.shape[1]):
-            if perturb_x[i][word_idx].data == 102:
-                perturb_x_mask[i][word_idx + 1:] = 0
-                break
+    perturb_x_mask = torch.ones(perturb_x.shape, requires_grad=True)
+    with torch.no_grad():
+        # mask before [SEP]
+        for i in range(perturb_x.shape[0]):
+            for word_idx in range(perturb_x.shape[1]):
+                if perturb_x[i][word_idx].item() == 102:
+                    perturb_x_mask[i][word_idx + 1:] = 0
+                    break
     perturb_x_mask = perturb_x_mask.to(Config.train_device)
     # perturb_logits: [batch, 4]
     perturb_logits = baseline_model(perturb_x, perturb_x_mask)
@@ -84,7 +85,7 @@ def train_gan_g(train_data, Seq2Seq_model, gan_gen, gan_adv, criterion_mse,
         # mask before [SEP]
         for i in range(perturb_x.shape[0]):
             for word_idx in range(perturb_x.shape[1]):
-                if perturb_x[i][word_idx].data == 102:
+                if perturb_x[i][word_idx].item() == 102:
                     perturb_x_mask[i][word_idx + 1:] = 0
                     break
     perturb_x_mask = perturb_x_mask.to(Config.train_device)

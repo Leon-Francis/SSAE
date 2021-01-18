@@ -117,7 +117,7 @@ def search_fast(Seq2Seq_model,
             # mask before [SEP]
             for i in range(perturb_x.shape[0]):
                 for word_idx in range(perturb_x.shape[1]):
-                    if perturb_x[i][word_idx].data == 0:
+                    if perturb_x[i][word_idx].item() == 0:
                         perturb_x_mask[i][word_idx] = 0
                         break
             perturb_x_mask = perturb_x_mask.to(Config.train_device)
@@ -128,7 +128,7 @@ def search_fast(Seq2Seq_model,
             successed = False
             successed_mask = perturb_label != label
             for i in range(successed_mask.shape[0]):
-                if successed_mask[i].data is True:
+                if successed_mask[i].item():
                     successed = True
                     break
 
