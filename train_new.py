@@ -72,8 +72,22 @@ def train_gan_g(train_data, Seq2Seq_model, gan_gen, gan_adv, criterion_mse,
     x, x_mask, y, _ = train_data
     # real_hidden: [batch, sen_len, hidden]
     real_hidden = Seq2Seq_model(x, x_mask, is_noise=False, encode_only=True)
-    # fake_hidden: [batch, sen_len, hidden]
-    fake_hidden = gan_gen(gan_adv(real_hidden))
+    # perturb_x: [batch, sen_len]
+    perturb_x = Seq2Seq_model(x,
+                              x_mask,
+                              is_noise=False,
+                              generator=gan_gen,
+                              adversary=gan_adv).argmax(dim=2)
+    # perturb_x_mask: [batch, seq_len]
+    perturb_x_mask = torch.ones(perturb_x.shape)
+    # mask before [SEP]
+    for i in range(perturb_x.shape[0]):
+        for word_idx in range(perturb_x.shape[1]):
+            if perturb_x[i][word_idx].data == 102:
+                perturb_x_mask[i][word_idx + 1:] = 0
+                break
+    perturb_x_mask = perturb_x_mask.to(Config.train_device)
+    fake_hidden = Seq2Seq_model(perturb_x, perturb_x_mask, is_noise=False, encode_only=True)
 
     loss = criterion_mse(real_hidden.reshape(real_hidden.shape[0], -1),
                          fake_hidden.reshape(fake_hidden.shape[0], -1))
