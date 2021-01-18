@@ -119,13 +119,13 @@ def evaluate_gan(test_data, Seq2Seq_model, gan_gen, gan_adv, dir):
                     f.write('------setence -> encoder -> decoder-------\n')
                     f.write(' '.join(
                         tokenizer.convert_ids_to_tokens(Seq2Seq_idx[i])) +
-                        '\n')
+                            '\n')
                     f.write(
                         '------sentence -> encoder -> inverter -> generator -> decoder-------\n'
                     )
                     f.write(' '.join(
                         tokenizer.convert_ids_to_tokens(eagd_idx[i])) +
-                        '\n' * 2)
+                            '\n' * 2)
 
 
 def evaluate_Seq2Seq(test_data, Seq2Seq_model, dir):
@@ -152,7 +152,7 @@ def evaluate_Seq2Seq(test_data, Seq2Seq_model, dir):
                         '-------sentence -> encoder -> decoder----------\n')
                     f.write(' '.join(
                         tokenizer.convert_ids_to_tokens(outputs_idx[i])) +
-                        '\n' * 2)
+                            '\n' * 2)
 
         return acc_sum / n
 
@@ -218,10 +218,12 @@ if __name__ == '__main__':
     baseline_model_bert = Baseline_Model_Bert().to(Config.train_device)
     # load pretrained
     baseline_model_bert.load_state_dict(
-        torch.load('output/baseline_model/baseline_model_bert.pt'))
-    Seq2Seq_model_bert.load_state_dict(
-        torch.load(
-            'output/Seq2Seq_model/1609511458/models/Seq2Seq_model_bert.pt'))
+        torch.load('output/baseline_model/baseline_model_bert_10.pt'))
+    if Config.load_pretrained_Seq2Seq:
+        Seq2Seq_model_bert.load_state_dict(
+            torch.load(
+                'output/Seq2Seq_model/1609511458/models/Seq2Seq_model_bert.pt')
+        )
 
     # init optimizer
     optimizer_Seq2Seq = optim.Adam(Seq2Seq_model_bert.parameters(),
@@ -252,12 +254,25 @@ if __name__ == '__main__':
                 Config.train_device), y.to(Config.train_device), label.to(
                     Config.train_device)
 
+            if not Config.load_pretrained_Seq2Seq:
+                for i in range(5):
+                    total_loss_Seq2Seq += train_Seq2Seq(
+                        (x, x_mask, y, label), Seq2Seq_model_bert,
+                        criterion_ce, optimizer_Seq2Seq, total_loss_Seq2Seq)
+            else:
+                if Config.fine_tuning:
+                    for i in range(5):
+                        total_loss_Seq2Seq += train_Seq2Seq(
+                            (x, x_mask, y, label), Seq2Seq_model_bert,
+                            criterion_ce, optimizer_Seq2Seq,
+                            total_loss_Seq2Seq)
+
             for i in range(5):
                 total_loss_gan_g += train_gan_g(
                     (x, x_mask, y, label), Seq2Seq_model_bert, gan_gen,
                     gan_adv, criterion_mse, optimizer_gan_g)
 
-            for i in range(5):
+            for i in range(1):
                 total_loss_gan_a += train_gan_a(
                     (x, x_mask, y, label), Seq2Seq_model_bert, gan_gen,
                     gan_adv, baseline_model_bert, optimizer_gan_a,
@@ -272,9 +287,6 @@ if __name__ == '__main__':
 
         # end of epoch --------------------------------
         # evaluation
-        os.makedirs(cur_dir_models + f'/epoch{epoch}')
-        save_all_models(Seq2Seq_model_bert, gan_gen, gan_adv,
-                        cur_dir_models + f'/epoch{epoch}')
 
         logging(f'epoch {epoch} evaluate Seq2Seq model')
         Seq2Seq_acc = evaluate_Seq2Seq(
@@ -287,6 +299,10 @@ if __name__ == '__main__':
                      cur_dir_models + f'/epoch{epoch}_evaluate_gan')
 
         if (epoch + 1) % 5 == 0:
+            os.makedirs(cur_dir_models + f'/epoch{epoch}')
+            save_all_models(Seq2Seq_model_bert, gan_gen, gan_adv,
+                            cur_dir_models + f'/epoch{epoch}')
+
             logging(f'epoch {epoch} Staring perturb')
             perturb(test_data, Seq2Seq_model_bert, gan_gen, gan_adv,
                     baseline_model_bert, cur_dir + f'/epoch{epoch}_perturb')
@@ -294,4 +310,4 @@ if __name__ == '__main__':
 # hidden: [batch_size, sen_len, hidden_size]
 # generator: LSTM
 # adversary: LSTM
-# Seq2Seq_model_bert loaded pertrained and without train
+# Seq2Seq_model_bert train

@@ -12,7 +12,7 @@ class Config:
     test_data_path = r'./dataset/AGNEWS/test.std'
     output_dir = r'./output'
 
-    epochs = 10
+    epochs = 20
     batch_size = 128
 
     baseline_learning_rate = 1e-4
@@ -25,9 +25,11 @@ class Config:
     hidden_size = 768
     super_hidden_size = 500
     vocab_size = 30522
-    sen_len = 25
+    sen_len = 10
     # new
     gan_adv_learning_rate = 1e-5
+    load_pretrained_Seq2Seq = False
+    fine_tuning = False
 
 
 if __name__ == "__main__":
