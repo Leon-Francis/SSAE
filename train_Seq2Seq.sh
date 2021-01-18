@@ -1,0 +1,1 @@
+nohup python train_Seq2Seq.py > train_Seq2Seq_25.log 2>&1 &

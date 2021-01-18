@@ -1,0 +1,1 @@
+nohup python train_baseline_model.py > train_baseline_25.log 2>&1 &
