@@ -20,8 +20,8 @@ class Baseline_Dataset(Dataset):
     def data2tokens(self):
         logging(f'{self.path} in data2tokens')
         for sen in self.datas:
-            tokens = self.tokenizer.tokenize(sen)[:Config.sen_len - 2]
-            self.data_tokens.append(['[CLS]'] + tokens + ['[SEP]'])
+            tokens = self.tokenizer.tokenize(sen)[:Config.sen_len - 1]
+            self.data_tokens.append(tokens + ['[SEP]'])
 
     def token2idx(self):
         logging(f'{self.path} in token2idx')

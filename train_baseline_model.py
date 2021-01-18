@@ -6,7 +6,6 @@ from tools import logging
 from config import Config
 from torch import nn, optim
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 import torch
 
 
@@ -17,7 +16,7 @@ def train_baseline():
         logging(f'epoch {epoch} train baseline_model')
         baseline_model_bert.train()
         loss_mean = 0.0
-        for x, x_mask, y in tqdm(train_data):
+        for x, x_mask, y in train_data:
             x, x_mask, y = x.to(Config.train_device), x_mask.to(
                 Config.train_device), y.to(Config.train_device)
             logits = baseline_model_bert(x, x_mask)

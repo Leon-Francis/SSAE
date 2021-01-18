@@ -6,7 +6,6 @@ from tools import logging
 from config import Config
 from torch import nn, optim
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 import torch
 from transformers import BertTokenizer
 
@@ -18,10 +17,10 @@ def train_Seq2Seq(train_data, test_data, model, criterion, optimizer):
         logging(f'epoch {epoch} train Seq2Seq model')
         model.train()
         loss_mean = 0.0
-        for x, x_mask, y, _ in tqdm(train_data):
+        for x, x_mask, y, _ in train_data:
             x, x_mask, y = x.to(Config.train_device), x_mask.to(
                 Config.train_device), y.to(Config.train_device)
-            logits = model(x, x_mask, is_noise=True)
+            logits = model(x, x_mask, is_noise=False)
             optimizer.zero_grad()
             logits = logits.reshape(-1, logits.shape[-1])
             y = y.reshape(-1)
