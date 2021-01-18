@@ -105,6 +105,7 @@ def search_fast(Seq2Seq_model,
             search_z = z.repeat(samples_num, 1, 1)
             delta = torch.FloatTensor(search_z.size()).uniform_(
                 -1 * search_bound, search_bound).to(Config.train_device)
+            delta[0] = 0
             # bound_distence: [samples_num, sen_len, super_hidden_size]
             bound_distence = torch.abs(delta)
             search_z += delta
