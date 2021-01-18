@@ -22,10 +22,10 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir):
                 # z: [batch, seq_len, super_hidden_size]
                 z = gan_adv(c)
 
-                for i in range(len(x)):
+                for i in range(len(y)):
                     f.write("==================================================\n")
                     f.write('Orginal sentence: \n')
-                    f.write(' '.join(tokenizer.convert_ids_to_tokens(x[i])) +
+                    f.write(' '.join(tokenizer.convert_ids_to_tokens(y[i])) +
                             "\n" * 2)
 
                     perturb_x, perturb_x_mask, perturb_label, successed_mask, bound_distence, counter, successed = search_fast(
