@@ -11,6 +11,7 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir):
     baseline_model.eval()
     with torch.no_grad():
         attack_succeeded_num = 0
+        attack_num = 0
         with open(dir, "a") as f:
             for x, x_mask, y, label in data:
                 x, x_mask, y, label = x.to(Config.train_device), x_mask.to(
@@ -35,18 +36,19 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir):
                         label[i],
                         z[i],
                         samples_num=5)
-
+                    attack_num += 1
                     if successed:
                         attack_succeeded_num += 1
                         f.write(
                             '==============Attark succeed!=================\n')
                         f.write(f'5 samples try for {counter} times\n')
                         f.write('Attack successed sample: \n')
-                        for i, successed_x in enumerate(
-                                perturb_x.masked_select(successed_mask)):
-                            f.write(' '.join(
-                                tokenizer.convert_ids_to_tokens(successed_x)))
-                            f.write('\n')
+                        for index in range(len(successed_mask)):
+                            if successed_mask[index].item():
+                                f.write(' '.join(
+                                    tokenizer.convert_ids_to_tokens(
+                                        perturb_x[index])))
+                                f.write('\n')
 
                         f.write('\nAll attack samples as follows: \n')
                         for i, perturb_x_sample in enumerate(perturb_x):
@@ -69,7 +71,7 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir):
                             f.write(' '.join(
                                 tokenizer.convert_ids_to_tokens(perturb_x_sample)))
                             f.write('\n')
-            f.write(f'{attack_succeeded_num / len(data)}')
+            f.write(f'attact success acc:{attack_succeeded_num / attack_num}\n')
 
 
 def search_fast(Seq2Seq_model,

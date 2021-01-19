@@ -192,7 +192,7 @@ def save_config(dir):
 
 
 if __name__ == '__main__':
-    logging('Using cuda device gpu: ' + Config.train_device.type)
+    logging('Using cuda device gpu: ' + str(Config.train_device.index))
     cur_dir = Config.output_dir + '/gan_model_new/' + str(int(time.time()))
     cur_dir_models = cur_dir + '/models'
     # make output directory if it doesn't already exist
