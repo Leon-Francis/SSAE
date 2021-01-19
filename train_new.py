@@ -196,6 +196,23 @@ def save_config(dir):
         f.write(f'Config.hidden_size:{Config.hidden_size}\n')
         f.write(f'Config.super_hidden_size:{Config.super_hidden_size}\n')
         f.write(f'Config.sen_len:{Config.sen_len}\n')
+        f.write(
+            f'Config.baseline_learning_rate:{Config.baseline_learning_rate}\n')
+        f.write(
+            f'Config.Seq2Seq_learning_rate:{Config.Seq2Seq_learning_rate}\n')
+        f.write(
+            f'Config.gan_gen_learning_rate:{Config.gan_gen_learning_rate}\n')
+        f.write(
+            f'Config.gan_disc_learning_rate:{Config.gan_disc_learning_rate}\n')
+        f.write(
+            f'Config.inverter_learning_rate:{Config.inverter_learning_rate}\n')
+        f.write(
+            f'Config.gan_adv_learning_rate:{Config.gan_adv_learning_rate}\n')
+        f.write(
+            f'Config.load_pretrained_Seq2Seq:{Config.load_pretrained_Seq2Seq}\n'
+        )
+        f.write(f'Config.fine_tuning:{Config.fine_tuning}\n')
+        f.write(f'Config.gan_gen_train_model:{Config.gan_gen_train_model}\n')
 
 
 if __name__ == '__main__':
