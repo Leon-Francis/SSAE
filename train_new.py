@@ -261,12 +261,13 @@ if __name__ == '__main__':
     # load pretrained
     baseline_model_bert.load_state_dict(
         torch.load(
-            'output/baseline_model/1610975155/models/baseline_model_bert.pt'))
+            'output/baseline_model/1610975155/models/baseline_model_bert.pt',
+            map_location=Config.train_device))
     if Config.load_pretrained_Seq2Seq:
         Seq2Seq_model_bert.load_state_dict(
             torch.load(
-                'output/Seq2Seq_model/1609511458/models/Seq2Seq_model_bert.pt')
-        )
+                'output/Seq2Seq_model/1609511458/models/Seq2Seq_model_bert.pt',
+                map_location=Config.train_device))
 
     # init optimizer
     optimizer_Seq2Seq = optim.Adam(Seq2Seq_model_bert.parameters(),
