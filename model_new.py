@@ -37,7 +37,7 @@ class Seq2Seq_bert(nn.Module):
             torch.tensor: hidden # [batch, seq_len, hidden_size]
         """
         encoders, pooled, all_hidden_states = self.encoder(
-            inputs, attention_mask=inputs_mask)
+            inputs, attention_mask=inputs_mask)[:]
         # pooled [batch, hidden_size]
         # hidden [batch, seq_len, hidden_size]
         hidden = encoders

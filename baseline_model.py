@@ -25,6 +25,6 @@ class Baseline_Model_Bert(nn.Module):
         Returns:
             logits: [batch, 4]
         """
-        encoder, pooled = self.bert_model(inputs, attention_mask=inputs_mask)
+        encoder, pooled = self.bert_model(inputs, attention_mask=inputs_mask)[:]
         logits = self.linear(pooled)
         return logits
