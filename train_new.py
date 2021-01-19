@@ -73,23 +73,30 @@ def train_gan_g(train_data, Seq2Seq_model, gan_gen, gan_adv, criterion_mse,
     x, x_mask, y, _ = train_data
     # real_hidden: [batch, sen_len, hidden]
     real_hidden = Seq2Seq_model(x, x_mask, is_noise=False, encode_only=True)
-    # perturb_x: [batch, sen_len]
-    perturb_x = Seq2Seq_model(x,
-                              x_mask,
-                              is_noise=False,
-                              generator=gan_gen,
-                              adversary=gan_adv).argmax(dim=2)
-    # perturb_x_mask: [batch, seq_len]
-    perturb_x_mask = torch.ones(perturb_x.shape, requires_grad=True)
-    with torch.no_grad():
-        # mask before [SEP]
-        for i in range(perturb_x.shape[0]):
-            for word_idx in range(perturb_x.shape[1]):
-                if perturb_x[i][word_idx].item() == 102:
-                    perturb_x_mask[i][word_idx + 1:] = 0
-                    break
-    perturb_x_mask = perturb_x_mask.to(Config.train_device)
-    fake_hidden = Seq2Seq_model(perturb_x, perturb_x_mask, is_noise=False, encode_only=True)
+    if Config.gan_gen_train_model:
+        # perturb_x: [batch, sen_len]
+        perturb_x = Seq2Seq_model(x,
+                                  x_mask,
+                                  is_noise=False,
+                                  generator=gan_gen,
+                                  adversary=gan_adv).argmax(dim=2)
+        # perturb_x_mask: [batch, seq_len]
+        perturb_x_mask = torch.ones(perturb_x.shape, requires_grad=True)
+        with torch.no_grad():
+            # mask before [SEP]
+            for i in range(perturb_x.shape[0]):
+                for word_idx in range(perturb_x.shape[1]):
+                    if perturb_x[i][word_idx].item() == 102:
+                        perturb_x_mask[i][word_idx + 1:] = 0
+                        break
+        perturb_x_mask = perturb_x_mask.to(Config.train_device)
+        fake_hidden = Seq2Seq_model(perturb_x,
+                                    perturb_x_mask,
+                                    is_noise=False,
+                                    encode_only=True)
+    else:
+        # fake_hidden: [batch, sen_len, hidden]
+        fake_hidden = gan_gen(gan_adv(real_hidden))
 
     loss = criterion_mse(real_hidden.reshape(real_hidden.shape[0], -1),
                          fake_hidden.reshape(fake_hidden.shape[0], -1))
@@ -234,7 +241,8 @@ if __name__ == '__main__':
     baseline_model_bert = Baseline_Model_Bert().to(Config.train_device)
     # load pretrained
     baseline_model_bert.load_state_dict(
-        torch.load('output/baseline_model/1610975155/models/baseline_model_bert.pt'))
+        torch.load(
+            'output/baseline_model/1610975155/models/baseline_model_bert.pt'))
     if Config.load_pretrained_Seq2Seq:
         Seq2Seq_model_bert.load_state_dict(
             torch.load(
@@ -283,7 +291,7 @@ if __name__ == '__main__':
                             criterion_ce, optimizer_Seq2Seq,
                             total_loss_Seq2Seq)
 
-            for i in range(5):
+            for i in range(10):
                 total_loss_gan_g += train_gan_g(
                     (x, x_mask, y, label), Seq2Seq_model_bert, gan_gen,
                     gan_adv, criterion_mse, optimizer_gan_g)

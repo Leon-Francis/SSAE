@@ -17,7 +17,7 @@ class Config:
 
     baseline_learning_rate = 1e-4
     Seq2Seq_learning_rate = 1e-4
-    gan_gen_learning_rate = 5e-5
+    gan_gen_learning_rate = 1e-4
     gan_disc_learning_rate = 1e-5
     inverter_learning_rate = 1e-5
     optim_betas = (0.9, 0.999)
@@ -30,6 +30,7 @@ class Config:
     gan_adv_learning_rate = 1e-5
     load_pretrained_Seq2Seq = False
     fine_tuning = False
+    gan_gen_train_model = False
 
 
 if __name__ == "__main__":
