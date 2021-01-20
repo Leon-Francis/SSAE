@@ -1,6 +1,6 @@
 import os
 import time
-from model_new import Seq2Seq_bert, LSTM_G, LSTM_A
+from model import Seq2Seq_bert, LSTM_G, LSTM_A
 from baseline_model import Baseline_Model_Bert
 from data import Seq2Seq_DataSet
 from tools import logging
@@ -10,6 +10,31 @@ from torch.utils.data import DataLoader
 import torch
 from transformers import BertTokenizer
 from perturb import perturb
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--dataset', choices=config_dataset_list)
+parser.add_argument('--model', choices=config_model_lists)
+# parser.add_argument('--save_acc_limit', help='set a acc lower limit for saving model',
+#                     type=float, default=0.85)
+parser.add_argument('--epoch', type=int, default=20)
+parser.add_argument('--enhanced', type=parse_bool, choices=[True, False])
+parser.add_argument('--adv',
+                    choices=[True, False],
+                    default='no',
+                    type=parse_bool)
+parser.add_argument('--batch', type=int, default=64)
+parser.add_argument('--lr', type=float, default=1e-3)
+parser.add_argument('--note', type=str, default='')
+parser.add_argument('--load_model',
+                    choices=[True, False],
+                    default='no',
+                    type=parse_bool)
+parser.add_argument('--verbose',
+                    choices=[True, False],
+                    default='no',
+                    type=parse_bool)
+args = parser.parse_args()
 
 
 def train_Seq2Seq(train_data, model, criterion, optimizer, total_loss):
@@ -205,10 +230,6 @@ def save_config(dir):
         f.write(
             f'Config.gan_gen_learning_rate:{Config.gan_gen_learning_rate}\n')
         f.write(
-            f'Config.gan_disc_learning_rate:{Config.gan_disc_learning_rate}\n')
-        f.write(
-            f'Config.inverter_learning_rate:{Config.inverter_learning_rate}\n')
-        f.write(
             f'Config.gan_adv_learning_rate:{Config.gan_adv_learning_rate}\n')
         f.write(
             f'Config.load_pretrained_Seq2Seq:{Config.load_pretrained_Seq2Seq}\n'
@@ -218,14 +239,15 @@ def save_config(dir):
 
 
 if __name__ == '__main__':
+    args = parser.parse_args()
     logging('Using cuda device gpu: ' + str(Config.train_device.index))
-    cur_dir = Config.output_dir + '/gan_model_new/' + str(int(time.time()))
+    cur_dir = Config.output_dir + '/gan_model/' + str(int(time.time()))
     cur_dir_models = cur_dir + '/models'
     # make output directory if it doesn't already exist
     if not os.path.isdir(Config.output_dir):
         os.makedirs(Config.output_dir)
-    if not os.path.isdir(Config.output_dir + '/gan_model_new'):
-        os.makedirs(Config.output_dir + '/gan_model_new')
+    if not os.path.isdir(Config.output_dir + '/gan_model'):
+        os.makedirs(Config.output_dir + '/gan_model')
     if not os.path.isdir(cur_dir):
         os.makedirs(cur_dir)
         os.makedirs(cur_dir_models)

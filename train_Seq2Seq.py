@@ -1,6 +1,6 @@
 import os
 import time
-from model_new import Seq2Seq_bert
+from model import Seq2Seq_bert
 from data import Seq2Seq_DataSet
 from tools import logging
 from config import Config

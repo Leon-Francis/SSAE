@@ -5,3 +5,5 @@ nohup.out
 output/
 *.log
 *.out
+baseline_models/
+static/
