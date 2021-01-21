@@ -144,13 +144,14 @@ class IMDB_Dataset(Dataset):
                     labels.append(label)
                 i -= 1
                 if i == 0:
+                    logging(f'loading data {len(datas)} from {path}')
                     return datas, labels
         for p in path_list:
             label = 0 if 'neg' in p else 1
             with open(p, 'r', encoding='utf-8') as file:
                 datas.append(file.readline())
                 labels.append(label)
-
+        logging(f'loading data {len(datas)} from {path}')
         return datas, labels
 
     def data2tokens(self):
