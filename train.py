@@ -1,22 +1,23 @@
 import os
 import time
-from model import Seq2Seq_bert, LSTM_G, LSTM_A
-from baseline_model import Baseline_Model_Bert
-from data import Seq2Seq_DataSet
-from tools import logging
-from config import Config
+import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
-import torch
 from transformers import BertTokenizer
 from perturb import perturb
+from shutil import copyfile
+from model import Seq2Seq_bert, LSTM_G, LSTM_A
+from baseline_model import Baseline_Model_Bert_Classification, Baseline_Model_LSTM_Classification, Baseline_Model_CNN_Classification
+from data import AGNEWS_Dataset, IMDB_Dataset, SNLI_Dataset
+from tools import logging
+from config import config_path, AttackConfig, dataset_config_data, baseline_model_load_path
 
 
 def train_Seq2Seq(train_data, model, criterion, optimizer, total_loss):
     model.train()
     x, x_mask, y, _ = train_data
-    x, x_mask, y = x.to(Config.train_device), x_mask.to(
-        Config.train_device), y.to(Config.train_device)
+    x, x_mask, y = x.to(AttackConfig.train_device), x_mask.to(
+        AttackConfig.train_device), y.to(AttackConfig.train_device)
     logits = model(x, x_mask, is_noise=False)
     optimizer.zero_grad()
     logits = logits.reshape(-1, logits.shape[-1])
@@ -34,6 +35,7 @@ def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
                 optimizer_gan_a, criterion_ce):
     gan_gen.train()
     gan_adv.train()
+    baseline_model.train()
     optimizer_gan_a.zero_grad()
 
     x, x_mask, y, label = train_data
@@ -43,18 +45,21 @@ def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
                               is_noise=False,
                               generator=gan_gen,
                               adversary=gan_adv).argmax(dim=2)
-    # perturb_x_mask: [batch, seq_len]
-    perturb_x_mask = torch.ones(perturb_x.shape, requires_grad=True)
-    with torch.no_grad():
-        # mask before [SEP]
-        for i in range(perturb_x.shape[0]):
-            for word_idx in range(perturb_x.shape[1]):
-                if perturb_x[i][word_idx].item() == 102:
-                    perturb_x_mask[i][word_idx + 1:] = 0
-                    break
-    perturb_x_mask = perturb_x_mask.to(Config.train_device)
-    # perturb_logits: [batch, 4]
-    perturb_logits = baseline_model(perturb_x, perturb_x_mask)
+    if AttackConfig.baseline_model == 'BERT':
+        # perturb_x_mask: [batch, seq_len]
+        perturb_x_mask = torch.ones(perturb_x.shape, requires_grad=True)
+        with torch.no_grad():
+            # mask before [SEP]
+            for i in range(perturb_x.shape[0]):
+                for word_idx in range(perturb_x.shape[1]):
+                    if perturb_x[i][word_idx].item() == 102:
+                        perturb_x_mask[i][word_idx + 1:] = 0
+                        break
+        perturb_x_mask = perturb_x_mask.to(AttackConfig.train_device)
+        # perturb_logits: [batch, 4]
+        perturb_logits = baseline_model(perturb_x, perturb_x_mask)
+    else:
+        perturb_logits = baseline_model(perturb_x)
 
     loss = criterion_ce(perturb_logits, label)
     loss *= -1
@@ -74,30 +79,7 @@ def train_gan_g(train_data, Seq2Seq_model, gan_gen, gan_adv, criterion_mse,
     x, x_mask, y, _ = train_data
     # real_hidden: [batch, sen_len, hidden]
     real_hidden = Seq2Seq_model(x, x_mask, is_noise=False, encode_only=True)
-    if Config.gan_gen_train_model:
-        # perturb_x: [batch, sen_len]
-        perturb_x = Seq2Seq_model(x,
-                                  x_mask,
-                                  is_noise=False,
-                                  generator=gan_gen,
-                                  adversary=gan_adv).argmax(dim=2)
-        # perturb_x_mask: [batch, seq_len]
-        perturb_x_mask = torch.ones(perturb_x.shape, requires_grad=True)
-        with torch.no_grad():
-            # mask before [SEP]
-            for i in range(perturb_x.shape[0]):
-                for word_idx in range(perturb_x.shape[1]):
-                    if perturb_x[i][word_idx].item() == 102:
-                        perturb_x_mask[i][word_idx + 1:] = 0
-                        break
-        perturb_x_mask = perturb_x_mask.to(Config.train_device)
-        fake_hidden = Seq2Seq_model(perturb_x,
-                                    perturb_x_mask,
-                                    is_noise=False,
-                                    encode_only=True)
-    else:
-        # fake_hidden: [batch, sen_len, hidden]
-        fake_hidden = gan_gen(gan_adv(real_hidden))
+    fake_hidden = gan_gen(gan_adv(real_hidden))
 
     loss = criterion_mse(real_hidden.reshape(real_hidden.shape[0], -1),
                          fake_hidden.reshape(fake_hidden.shape[0], -1))
@@ -118,8 +100,8 @@ def evaluate_gan(test_data, Seq2Seq_model, gan_gen, gan_adv, dir):
     with torch.no_grad():
 
         for x, x_mask, y, _ in test_data:
-            x, x_mask, y = x.to(Config.train_device), x_mask.to(
-                Config.train_device), y.to(Config.train_device)
+            x, x_mask, y = x.to(AttackConfig.train_device), x_mask.to(
+                AttackConfig.train_device), y.to(AttackConfig.train_device)
 
             # sentence -> encoder -> decoder
             Seq2Seq_outputs = Seq2Seq_model(x, x_mask, is_noise=False)
@@ -161,8 +143,8 @@ def evaluate_Seq2Seq(test_data, Seq2Seq_model, dir):
         acc_sum = 0
         n = 0
         for x, x_mask, y, _ in test_data:
-            x, x_mask, y = x.to(Config.train_device), x_mask.to(
-                Config.train_device), y.to(Config.train_device)
+            x, x_mask, y = x.to(AttackConfig.train_device), x_mask.to(
+                AttackConfig.train_device), y.to(AttackConfig.train_device)
             logits = Seq2Seq_model(x, x_mask, is_noise=False)
             # outputs_idx: [batch, sen_len]
             outputs_idx = logits.argmax(dim=2)
@@ -189,100 +171,125 @@ def save_all_models(Seq2Seq_model, gan_gen, gan_adv, dir):
     torch.save(gan_adv.state_dict(), dir + '/gan_adv.pt')
 
 
-def save_config(dir):
-    with open(dir, 'w') as f:
-        f.write(f'Config.train_device:{Config.train_device}\n')
-        f.write(f'Config.train_data_path:{Config.train_data_path}\n')
-        f.write(f'Config.epochs:{Config.epochs}\n')
-        f.write(f'Config.batch_size:{Config.batch_size}\n')
-        f.write(f'Config.hidden_size:{Config.hidden_size}\n')
-        f.write(f'Config.super_hidden_size:{Config.super_hidden_size}\n')
-        f.write(f'Config.sen_len:{Config.sen_len}\n')
-        f.write(
-            f'Config.baseline_learning_rate:{Config.baseline_learning_rate}\n')
-        f.write(
-            f'Config.Seq2Seq_learning_rate:{Config.Seq2Seq_learning_rate}\n')
-        f.write(
-            f'Config.gan_gen_learning_rate:{Config.gan_gen_learning_rate}\n')
-        f.write(
-            f'Config.gan_adv_learning_rate:{Config.gan_adv_learning_rate}\n')
-        f.write(
-            f'Config.load_pretrained_Seq2Seq:{Config.load_pretrained_Seq2Seq}\n'
-        )
-        f.write(f'Config.fine_tuning:{Config.fine_tuning}\n')
-        f.write(f'Config.gan_gen_train_model:{Config.gan_gen_train_model}\n')
+def save_config(path):
+    copyfile(config_path, path + r'/config.txt')
+
+
+def build_dataset():
+    if AttackConfig.dataset == 'SNLI':
+        train_dataset_orig = SNLI_Dataset(train_data=True,
+                                          debug_mode=AttackConfig.debug_mode)
+        test_dataset_orig = SNLI_Dataset(train_data=False,
+                                         debug_mode=AttackConfig.debug_mode)
+    elif AttackConfig.dataset == 'AGNEWS':
+        train_dataset_orig = AGNEWS_Dataset(train_data=True,
+                                            debug_mode=AttackConfig.debug_mode)
+        test_dataset_orig = AGNEWS_Dataset(train_data=False,
+                                           debug_mode=AttackConfig.debug_mode)
+    elif AttackConfig.dataset == 'IMDB':
+        train_dataset_orig = IMDB_Dataset(train_data=True,
+                                          debug_mode=AttackConfig.debug_mode)
+        test_dataset_orig = IMDB_Dataset(train_data=False,
+                                         debug_mode=AttackConfig.debug_mode)
+    train_data = DataLoader(train_dataset_orig,
+                            batch_size=AttackConfig.batch_size,
+                            shuffle=True,
+                            num_workers=4)
+    test_data = DataLoader(test_dataset_orig,
+                           batch_size=AttackConfig.batch_size,
+                           shuffle=False,
+                           num_workers=4)
+    return train_data, test_data
+
+
+def build_baseline_model():
+    if AttackConfig.dataset == 'SNLI':
+        assert AttackConfig.baseline_model == 'BERT' or AttackConfig.baseline_model == 'LSTM'
+        # TODO: SNLI_baseline_model
+
+    elif AttackConfig.dataset == 'AGNEWS':
+        if AttackConfig.baseline_model == 'BERT':
+            baseline_model = Baseline_Model_Bert_Classification(
+                dataset_config_data['AGNEWS'])
+        elif AttackConfig.baseline_model == 'LSTM':
+            baseline_model = Baseline_Model_LSTM_Classification(
+                dataset_config_data['AGNEWS'], bidirectional=False)
+        elif AttackConfig.baseline_model == 'BidLSTM':
+            baseline_model = Baseline_Model_LSTM_Classification(
+                dataset_config_data['AGNEWS'], bidirectional=True)
+        elif AttackConfig.baseline_model == 'CNN':
+            baseline_model = Baseline_Model_CNN_Classification(
+                dataset_config_data['AGNEWS'])
+
+    elif AttackConfig.dataset == 'IMDB':
+        if AttackConfig.baseline_model == 'BERT':
+            baseline_model = Baseline_Model_Bert_Classification(
+                dataset_config_data['IMDB'])
+        elif AttackConfig.baseline_model == 'LSTM':
+            baseline_model = Baseline_Model_LSTM_Classification(
+                dataset_config_data['IMDB'], bidirectional=False)
+        elif AttackConfig.baseline_model == 'BidLSTM':
+            baseline_model = Baseline_Model_LSTM_Classification(
+                dataset_config_data['IMDB'], bidirectional=True)
+        elif AttackConfig.baseline_model == 'CNN':
+            baseline_model = Baseline_Model_CNN_Classification(
+                dataset_config_data['IMDB'])
+    return baseline_model
 
 
 if __name__ == '__main__':
-    logging('Using cuda device gpu: ' + str(Config.train_device.index))
-    cur_dir = Config.output_dir + '/gan_model/' + str(int(time.time()))
+    logging('Using cuda device gpu: ' + str(AttackConfig.cuda_idx))
+    cur_dir = AttackConfig.output_dir + '/gan_model/' + AttackConfig.dataset + '/' + AttackConfig.baseline_model + '/' + str(
+        int(time.time()))
     cur_dir_models = cur_dir + '/models'
     # make output directory if it doesn't already exist
-    if not os.path.isdir(Config.output_dir):
-        os.makedirs(Config.output_dir)
-    if not os.path.isdir(Config.output_dir + '/gan_model'):
-        os.makedirs(Config.output_dir + '/gan_model')
     if not os.path.isdir(cur_dir):
         os.makedirs(cur_dir)
         os.makedirs(cur_dir_models)
     logging('Saving into directory' + cur_dir)
-    save_config(cur_dir + '/config.log')
+    save_config(cur_dir)
 
     # prepare dataset
     logging('preparing data...')
-    train_dataset_orig = Seq2Seq_DataSet(Config.train_data_path)
-    test_dataset_orig = Seq2Seq_DataSet(Config.test_data_path)
-    train_data = DataLoader(train_dataset_orig,
-                            batch_size=Config.batch_size,
-                            shuffle=True,
-                            num_workers=4)
-    test_data = DataLoader(test_dataset_orig,
-                           batch_size=Config.batch_size,
-                           shuffle=False,
-                           num_workers=4)
-    logging('prepare data finished')
+    train_data, test_data = build_dataset()
 
     # init models
     logging('init models, optimizer, criterion...')
-    Seq2Seq_model_bert = Seq2Seq_bert(hidden_size=Config.hidden_size).to(
-        Config.train_device)
-    gan_gen = LSTM_G(Config.super_hidden_size,
-                     Config.hidden_size,
-                     num_layers=3).to(Config.train_device)
+    Seq2Seq_model = Seq2Seq_bert(hidden_size=AttackConfig.hidden_size).to(
+        AttackConfig.train_device)
+    gan_gen = LSTM_G(AttackConfig.super_hidden_size,
+                     AttackConfig.hidden_size,
+                     num_layers=3).to(AttackConfig.train_device)
 
-    gan_adv = LSTM_A(Config.hidden_size,
-                     Config.super_hidden_size,
-                     num_layers=3).to(Config.train_device)
-    baseline_model_bert = Baseline_Model_Bert().to(Config.train_device)
+    gan_adv = LSTM_A(AttackConfig.hidden_size,
+                     AttackConfig.super_hidden_size,
+                     num_layers=3).to(AttackConfig.train_device)
+    baseline_model = build_baseline_model().to(AttackConfig.train_device)
     # load pretrained
-    baseline_model_bert.load_state_dict(
-        torch.load(
-            'output/baseline_model/1610975155/models/baseline_model_bert.pt',
-            map_location=Config.train_device))
-    if Config.load_pretrained_Seq2Seq:
-        Seq2Seq_model_bert.load_state_dict(
-            torch.load(
-                'output/Seq2Seq_model/1609511458/models/Seq2Seq_model_bert.pt',
-                map_location=Config.train_device))
+    baseline_model.load_state_dict(
+        torch.load(baseline_model_load_path[AttackConfig.dataset][
+            AttackConfig.baseline_model],
+                   map_location=AttackConfig.train_device))
 
     # init optimizer
-    optimizer_Seq2Seq = optim.Adam(Seq2Seq_model_bert.parameters(),
-                                   lr=Config.Seq2Seq_learning_rate)
+    optimizer_Seq2Seq = optim.Adam(Seq2Seq_model.parameters(),
+                                   lr=AttackConfig.Seq2Seq_learning_rate)
     optimizer_gan_g = optim.Adam(gan_gen.parameters(),
-                                 lr=Config.gan_gen_learning_rate,
-                                 betas=Config.optim_betas)
+                                 lr=AttackConfig.gan_gen_learning_rate)
     optimizer_gan_a = optim.Adam(gan_adv.parameters(),
-                                 lr=Config.gan_adv_learning_rate,
-                                 betas=Config.optim_betas)
+                                 lr=AttackConfig.gan_adv_learning_rate)
     # init criterion
-    criterion_ce = nn.CrossEntropyLoss().to(Config.train_device)
-    criterion_mse = nn.MSELoss().to(Config.train_device)
-    logging('init models, optimizer, criterion finished')
+    criterion_ce = nn.CrossEntropyLoss().to(AttackConfig.train_device)
+    criterion_mse = nn.MSELoss().to(AttackConfig.train_device)
 
     # start training
     logging('Training Seq2Seq Model...')
 
-    for epoch in range(Config.epochs):
+    niter_gan = 1
+
+    for epoch in range(AttackConfig.epochs):
+        if epoch in AttackConfig.gan_schedule:
+            niter_gan += 1
         niter = 0
         total_loss_Seq2Seq = 0
         total_loss_gan_a = 0
@@ -290,38 +297,38 @@ if __name__ == '__main__':
         logging(f'Training {epoch} epoch')
         for x, x_mask, y, label in train_data:
             niter += 1
-            x, x_mask, y, label = x.to(Config.train_device), x_mask.to(
-                Config.train_device), y.to(Config.train_device), label.to(
-                    Config.train_device)
+            x, x_mask, y, label = x.to(AttackConfig.train_device), x_mask.to(
+                AttackConfig.train_device), y.to(
+                    AttackConfig.train_device), label.to(
+                        AttackConfig.train_device)
 
-            if not Config.load_pretrained_Seq2Seq:
-                for i in range(5):
+            if not AttackConfig.load_pretrained_Seq2Seq:
+                for i in range(AttackConfig.seq2seq_train_times):
                     total_loss_Seq2Seq += train_Seq2Seq(
-                        (x, x_mask, y, label), Seq2Seq_model_bert,
-                        criterion_ce, optimizer_Seq2Seq, total_loss_Seq2Seq)
+                        (x, x_mask, y, label), Seq2Seq_model, criterion_ce,
+                        optimizer_Seq2Seq, total_loss_Seq2Seq)
             else:
-                if Config.fine_tuning:
-                    for i in range(5):
+                if AttackConfig.fine_tuning:
+                    for i in range(AttackConfig.seq2seq_train_times):
                         total_loss_Seq2Seq += train_Seq2Seq(
-                            (x, x_mask, y, label), Seq2Seq_model_bert,
-                            criterion_ce, optimizer_Seq2Seq,
-                            total_loss_Seq2Seq)
+                            (x, x_mask, y, label), Seq2Seq_model, criterion_ce,
+                            optimizer_Seq2Seq, total_loss_Seq2Seq)
 
-            for i in range(10):
-                total_loss_gan_g += train_gan_g(
-                    (x, x_mask, y, label), Seq2Seq_model_bert, gan_gen,
-                    gan_adv, criterion_mse, optimizer_gan_g, optimizer_gan_a)
+            for k in range(niter_gan):
+                for i in range(AttackConfig.gan_gen_train_times):
+                    total_loss_gan_g += train_gan_g(
+                        (x, x_mask, y, label), Seq2Seq_model, gan_gen, gan_adv,
+                        criterion_mse, optimizer_gan_g, optimizer_gan_a)
 
-            for i in range(1):
-                total_loss_gan_a += train_gan_a(
-                    (x, x_mask, y, label), Seq2Seq_model_bert, gan_gen,
-                    gan_adv, baseline_model_bert, optimizer_gan_a,
-                    criterion_ce)
+                for i in range(AttackConfig.gan_adv_train_times):
+                    total_loss_gan_a += train_gan_a(
+                        (x, x_mask, y, label), Seq2Seq_model, gan_gen, gan_adv,
+                        baseline_model, optimizer_gan_a, criterion_ce)
 
             if niter % 100 == 0:
                 # decaying noise
                 logging(
-                    f'epoch {epoch}, niter {niter}:Loss_Seq2Seq: {total_loss_Seq2Seq / niter / Config.batch_size / 5}, Loss_gan_g: {total_loss_gan_g / niter / Config.batch_size / 5}, Loss_gan_a: {total_loss_gan_a / niter / Config.batch_size / 5}'
+                    f'epoch {epoch}, niter {niter}:Loss_Seq2Seq: {total_loss_Seq2Seq / niter / AttackConfig.batch_size / AttackConfig.seq2seq_train_times}, Loss_gan_g: {total_loss_gan_g / niter / AttackConfig.batch_size / AttackConfig.gan_gen_train_times}, Loss_gan_a: {total_loss_gan_a / niter / AttackConfig.batch_size / AttackConfig.gan_adv_train_times}'
                 )
 
         # end of epoch --------------------------------
@@ -329,24 +336,19 @@ if __name__ == '__main__':
 
         logging(f'epoch {epoch} evaluate Seq2Seq model')
         Seq2Seq_acc = evaluate_Seq2Seq(
-            test_data, Seq2Seq_model_bert,
+            test_data, Seq2Seq_model,
             cur_dir_models + f'/epoch{epoch}_evaluate_Seq2Seq')
-        logging(f'Seq2Seq_model_bert acc = {Seq2Seq_acc}')
+        logging(f'Seq2Seq_model acc = {Seq2Seq_acc}')
 
         logging(f'epoch {epoch} evaluate gan')
-        evaluate_gan(test_data, Seq2Seq_model_bert, gan_gen, gan_adv,
+        evaluate_gan(test_data, Seq2Seq_model, gan_gen, gan_adv,
                      cur_dir_models + f'/epoch{epoch}_evaluate_gan')
 
-        if (epoch + 1) % 5 == 0:
+        if (epoch + 1) % 1 == 0:
             os.makedirs(cur_dir_models + f'/epoch{epoch}')
-            save_all_models(Seq2Seq_model_bert, gan_gen, gan_adv,
+            save_all_models(Seq2Seq_model, gan_gen, gan_adv,
                             cur_dir_models + f'/epoch{epoch}')
 
             logging(f'epoch {epoch} Staring perturb')
-            perturb(test_data, Seq2Seq_model_bert, gan_gen, gan_adv,
-                    baseline_model_bert, cur_dir + f'/epoch{epoch}_perturb')
-
-# hidden: [batch_size, sen_len, hidden_size]
-# generator: LSTM
-# adversary: LSTM
-# Seq2Seq_model_bert train
+            perturb(test_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
+                    cur_dir + f'/epoch{epoch}_perturb')

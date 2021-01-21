@@ -1,4 +1,4 @@
-from config import Config
+from config import AttackConfig
 from transformers import BertTokenizer
 import torch
 
@@ -15,9 +15,11 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir):
         attack_count_num = 0
         with open(dir, "a") as f:
             for x, x_mask, y, label in data:
-                x, x_mask, y, label = x.to(Config.train_device), x_mask.to(
-                    Config.train_device), y.to(Config.train_device), label.to(
-                        Config.train_device)
+                x, x_mask, y, label = x.to(
+                    AttackConfig.train_device), x_mask.to(
+                        AttackConfig.train_device), y.to(
+                            AttackConfig.train_device), label.to(
+                                AttackConfig.train_device)
                 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
                 # c: [batch, sen_len, hidden_size]
                 c = Seq2Seq_model(x, x_mask, is_noise=False, encode_only=True)
@@ -31,14 +33,14 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir):
                     f.write(' '.join(tokenizer.convert_ids_to_tokens(y[i])) +
                             "\n" * 2)
 
-                    perturb_x, perturb_x_mask, perturb_label, successed_mask, bound_distence, counter, successed = search_fast(
+                    perturb_x, successed_mask, bound_distence, counter, successed = search_fast(
                         Seq2Seq_model,
                         gan_gen,
                         baseline_model,
                         label[i],
                         z[i],
-                        samples_num=5,
-                        right=Config.search_bound)
+                        samples_num=AttackConfig.perturb_sample_num,
+                        right=AttackConfig.perturb_search_bound)
                     attack_count_num += counter
                     attack_num += 1
                     if successed:
@@ -82,13 +84,8 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir):
             f.write(f'avg attack try times:{attack_count_num / attack_num}\n')
 
 
-def search_fast(Seq2Seq_model,
-                generator,
-                baseline_model,
-                label,
-                z,
-                samples_num=5,
-                right=0.5):
+def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
+                samples_num, right):
     """search for adversary sample
 
     Args:
@@ -114,7 +111,7 @@ def search_fast(Seq2Seq_model,
             # search_z: [samples_num, sen_len, super_hidden_size]
             search_z = z.repeat(samples_num, 1, 1)
             delta = torch.FloatTensor(search_z.size()).uniform_(
-                -1 * search_bound, search_bound).to(Config.train_device)
+                -1 * search_bound, search_bound).to(AttackConfig.train_device)
             delta[0] = 0
             # bound_distence: [samples_num, sen_len, super_hidden_size]
             bound_distence = torch.abs(delta)
@@ -123,17 +120,20 @@ def search_fast(Seq2Seq_model,
             perturb_hidden = generator(search_z)
             # pertub_x: [samples_num, seq_len]
             perturb_x = Seq2Seq_model.decode(perturb_hidden).argmax(dim=2)
-            perturb_x_mask = torch.ones(perturb_x.shape)
-            # mask before [SEP]
-            for i in range(perturb_x.shape[0]):
-                for word_idx in range(perturb_x.shape[1]):
-                    if perturb_x[i][word_idx].item() == 0:
-                        perturb_x_mask[i][word_idx] = 0
-                        break
-            perturb_x_mask = perturb_x_mask.to(Config.train_device)
-            # perturb_label: [samples_num]
-            perturb_label = baseline_model(perturb_x,
-                                           perturb_x_mask).argmax(dim=1)
+            if AttackConfig.baseline_model == 'BERT':
+                perturb_x_mask = torch.ones(perturb_x.shape)
+                # mask before [SEP]
+                for i in range(perturb_x.shape[0]):
+                    for word_idx in range(perturb_x.shape[1]):
+                        if perturb_x[i][word_idx].item() == 102:
+                            perturb_x_mask[i][word_idx + 1:] = 0
+                            break
+                perturb_x_mask = perturb_x_mask.to(AttackConfig.train_device)
+                # perturb_label: [samples_num]
+                perturb_label = baseline_model(perturb_x,
+                                               perturb_x_mask).argmax(dim=1)
+            else:
+                perturb_label = baseline_model(perturb_x).argmax(dim=1)
 
             successed = False
             successed_mask = perturb_label != label
@@ -143,11 +143,11 @@ def search_fast(Seq2Seq_model,
                     break
 
             if successed:
-                return perturb_x, perturb_x_mask, perturb_label, successed_mask, bound_distence.sum(
+                return perturb_x, successed_mask, bound_distence.sum(
                     dim=2), counter, successed
             else:
                 counter += 1
                 search_bound *= 2
 
-    return perturb_x, perturb_x_mask, perturb_label, successed_mask, bound_distence.sum(
+    return perturb_x, successed_mask, bound_distence.sum(
         dim=2), counter, successed

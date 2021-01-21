@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
-from config import Config
+from config import AttackConfig
 from transformers import BertModel
-
 from transformers import BertTokenizer
 from torch import optim
 
@@ -18,11 +17,11 @@ class Seq2Seq_bert(nn.Module):
                                                  output_hidden_states=True)
         for param in self.encoder.parameters():
             param.requires_grad = False
-        self.decoder = nn.LSTM(input_size=Config.hidden_size,
+        self.decoder = nn.LSTM(input_size=AttackConfig.hidden_size,
                                hidden_size=self.hidden_size,
                                num_layers=self.num_layers,
                                dropout=self.dropout)
-        self.mlp_decoder = nn.Linear(self.hidden_size, Config.vocab_size)
+        self.mlp_decoder = nn.Linear(self.hidden_size, AttackConfig.vocab_size)
 
     def encode(self, inputs, inputs_mask, is_noise=False):
         """bert_based_encode
@@ -44,7 +43,7 @@ class Seq2Seq_bert(nn.Module):
         if is_noise:
             gaussian_noise = torch.normal(mean=torch.zeros_like(hidden),
                                           std=self.noise_std)
-            gaussian_noise.to(Config.train_device)
+            gaussian_noise.to(AttackConfig.train_device)
             hidden += gaussian_noise
         return hidden, state
 
@@ -121,7 +120,8 @@ class MLP_G(nn.Module):
         # X: [batch, seq_len, super_hidden_size]
         X = X.view(X.shape[0], -1)
         logits = self.mlp(X)
-        logits = logits.view(-1, Config.sen_len, Config.hidden_size)
+        logits = logits.view(-1, AttackConfig.sen_len,
+                             AttackConfig.hidden_size)
         return logits
 
 
@@ -145,7 +145,8 @@ class MLP_A(nn.Module):
         # X: [batch, seq_len, hidden_size]
         X = X.view(X.shape[0], -1)
         logits = self.mlp(X)
-        logits = logits.view(-1, Config.sen_len, Config.super_hidden_size)
+        logits = logits.view(-1, AttackConfig.sen_len,
+                             AttackConfig.super_hidden_size)
         return logits
 
 
@@ -172,14 +173,14 @@ class LSTM_G(nn.Module):
     def initHidden(self, batch_size):
         if self.lstm.bidirectional:
             return (torch.rand(self.num_layers * 2, batch_size,
-                               self.hidden_size).to(Config.train_device),
+                               self.hidden_size).to(AttackConfig.train_device),
                     torch.rand(self.num_layers * 2, batch_size,
-                               self.hidden_size).to(Config.train_device))
+                               self.hidden_size).to(AttackConfig.train_device))
         else:
             return (torch.rand(self.num_layers, batch_size,
-                               self.hidden_size).to(Config.train_device),
+                               self.hidden_size).to(AttackConfig.train_device),
                     torch.rand(self.num_layers, batch_size,
-                               self.hidden_size).to(Config.train_device))
+                               self.hidden_size).to(AttackConfig.train_device))
 
     def forward(self, inputs):
         # input: [batch_size, sen_len, super_hidden_size]
@@ -211,14 +212,14 @@ class LSTM_A(nn.Module):
     def initHidden(self, batch_size):
         if self.lstm.bidirectional:
             return (torch.rand(self.num_layers * 2, batch_size,
-                               self.hidden_size).to(Config.train_device),
+                               self.hidden_size).to(AttackConfig.train_device),
                     torch.rand(self.num_layers * 2, batch_size,
-                               self.hidden_size).to(Config.train_device))
+                               self.hidden_size).to(AttackConfig.train_device))
         else:
             return (torch.rand(self.num_layers, batch_size,
-                               self.hidden_size).to(Config.train_device),
+                               self.hidden_size).to(AttackConfig.train_device),
                     torch.rand(self.num_layers, batch_size,
-                               self.hidden_size).to(Config.train_device))
+                               self.hidden_size).to(AttackConfig.train_device))
 
     def forward(self, inputs):
         # input: [batch_size, sen_len, hidden_size]
@@ -282,14 +283,16 @@ if __name__ == "__main__":
     data_idx = torch.tensor(data_idx)
     data_mask = torch.tensor(data_mask)
     label_idx = torch.tensor(label_idx)
-    Seq2Seq_model_bert = Seq2Seq_bert(hidden_size=Config.hidden_size).to(
-        Config.train_device)
-    criterion_baseline_model = nn.CrossEntropyLoss().to(Config.train_device)
-    optimizer_baseline_model = optim.Adam(Seq2Seq_model_bert.parameters(),
-                                          lr=Config.baseline_learning_rate)
-    data_idx = data_idx.to(Config.train_device)
-    data_mask = data_mask.to(Config.train_device)
-    label_idx = label_idx.to(Config.train_device)
+    Seq2Seq_model_bert = Seq2Seq_bert(hidden_size=AttackConfig.hidden_size).to(
+        AttackConfig.train_device)
+    criterion_baseline_model = nn.CrossEntropyLoss().to(
+        AttackConfig.train_device)
+    optimizer_baseline_model = optim.Adam(
+        Seq2Seq_model_bert.parameters(),
+        lr=AttackConfig.baseline_learning_rate)
+    data_idx = data_idx.to(AttackConfig.train_device)
+    data_mask = data_mask.to(AttackConfig.train_device)
+    label_idx = label_idx.to(AttackConfig.train_device)
     logits = Seq2Seq_model_bert(data_idx, data_mask, is_noise=True)
     optimizer_baseline_model.zero_grad()
     logits_flatten = logits.view(-1, logits.shape[-1])

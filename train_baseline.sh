@@ -1,1 +1,1 @@
-nohup python train_baseline_model.py > train_baseline_50.log 2>&1 &
+nohup python train_baseline_model.py > train_baseline_IMDB_BERT_1.log 2>&1 &

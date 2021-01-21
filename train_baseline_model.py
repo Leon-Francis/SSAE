@@ -11,9 +11,9 @@ from config import BaselineConfig
 from shutil import copyfile
 
 
-def train_bert_baseline_classifier(model, train_data, test_data,
-                                   criterion_baseline_model,
-                                   optimizer_baseline_model, cur_dir):
+def train_bert_baseline_Classification(model, train_data, test_data,
+                                       criterion_baseline_model,
+                                       optimizer_baseline_model, cur_dir):
     best_accuracy = 0.0
     for epoch in range(BaselineConfig.epochs):
         logging(f'epoch {epoch} start')
@@ -22,7 +22,8 @@ def train_bert_baseline_classifier(model, train_data, test_data,
         loss_mean = 0.0
         for x, x_mask, _, label in train_data:
             x, x_mask, label = x.to(BaselineConfig.train_device), x_mask.to(
-                BaselineConfig.train_device), label.to(BaselineConfig.train_device)
+                BaselineConfig.train_device), label.to(
+                    BaselineConfig.train_device)
             logits = model(x, x_mask)
             optimizer_baseline_model.zero_grad()
             loss = criterion_baseline_model(logits, label)
@@ -32,7 +33,7 @@ def train_bert_baseline_classifier(model, train_data, test_data,
 
         loss_mean /= len(train_data)
         logging(f"epoch {epoch} train_loss is {loss_mean}")
-        eval_accuracy = eval_bert_baseline_classifier(model, test_data)
+        eval_accuracy = eval_bert_baseline_Classification(model, test_data)
         logging(f"epoch {epoch} test_acc is {eval_accuracy}")
         if best_accuracy < eval_accuracy:
             best_accuracy = eval_accuracy
@@ -44,23 +45,24 @@ def train_bert_baseline_classifier(model, train_data, test_data,
     logging(f'best accuracy is {best_accuracy}')
 
 
-def eval_bert_baseline_classifier(model, test_data):
+def eval_bert_baseline_Classification(model, test_data):
     with torch.no_grad():
         model.eval()
         acc_sum = 0
         n = 0
         for x, x_mask, _, label in test_data:
             x, x_mask, label = x.to(BaselineConfig.train_device), x_mask.to(
-                BaselineConfig.train_device), label.to(BaselineConfig.train_device)
+                BaselineConfig.train_device), label.to(
+                    BaselineConfig.train_device)
             logits = model(x, x_mask)
             acc_sum += (logits.argmax(dim=1) == label).float().sum().item()
             n += label.shape[0]
         return acc_sum / n
 
 
-def train_baseline_classifier(model, train_data, test_data,
-                              criterion_baseline_model,
-                              optimizer_baseline_model, cur_dir):
+def train_baseline_Classification(model, train_data, test_data,
+                                  criterion_baseline_model,
+                                  optimizer_baseline_model, cur_dir):
     best_accuracy = 0.0
     for epoch in range(BaselineConfig.epochs):
         logging(f'epoch {epoch} start')
@@ -79,7 +81,7 @@ def train_baseline_classifier(model, train_data, test_data,
 
         loss_mean /= len(train_data)
         logging(f"epoch {epoch} train_loss is {loss_mean}")
-        eval_accuracy = eval_baseline_classifier(model, test_data)
+        eval_accuracy = eval_baseline_Classification(model, test_data)
         logging(f"epoch {epoch} test_acc is {eval_accuracy}")
         if best_accuracy < eval_accuracy:
             best_accuracy = eval_accuracy
@@ -91,7 +93,7 @@ def train_baseline_classifier(model, train_data, test_data,
     logging(f'best accuracy is {best_accuracy}')
 
 
-def eval_baseline_classifier(model, test_data):
+def eval_baseline_Classification(model, test_data):
     with torch.no_grad():
         model.eval()
         acc_sum = 0
@@ -147,10 +149,10 @@ def build_dataset():
         test_dataset_orig = SNLI_Dataset(train_data=False,
                                          debug_mode=BaselineConfig.debug_mode)
     elif BaselineConfig.dataset == 'AGNEWS':
-        train_dataset_orig = AGNEWS_Dataset(train_data=True,
-                                            debug_mode=BaselineConfig.debug_mode)
-        test_dataset_orig = AGNEWS_Dataset(train_data=False,
-                                           debug_mode=BaselineConfig.debug_mode)
+        train_dataset_orig = AGNEWS_Dataset(
+            train_data=True, debug_mode=BaselineConfig.debug_mode)
+        test_dataset_orig = AGNEWS_Dataset(
+            train_data=False, debug_mode=BaselineConfig.debug_mode)
     elif BaselineConfig.dataset == 'IMDB':
         train_dataset_orig = IMDB_Dataset(train_data=True,
                                           debug_mode=BaselineConfig.debug_mode)
@@ -179,13 +181,14 @@ def train_and_evaluate(model, train_data, test_data, criterion_baseline_model,
 
     else:
         if BaselineConfig.baseline_model == 'BERT':
-            train_bert_baseline_classifier(model, train_data, test_data,
-                                           criterion_baseline_model,
-                                           optimizer_baseline_model, cur_dir)
+            train_bert_baseline_Classification(model, train_data, test_data,
+                                               criterion_baseline_model,
+                                               optimizer_baseline_model,
+                                               cur_dir)
         else:
-            train_baseline_classifier(model, train_data, test_data,
-                                      criterion_baseline_model,
-                                      optimizer_baseline_model, cur_dir)
+            train_baseline_Classification(model, train_data, test_data,
+                                          criterion_baseline_model,
+                                          optimizer_baseline_model, cur_dir)
 
 
 if __name__ == "__main__":
@@ -203,10 +206,11 @@ if __name__ == "__main__":
     model = build_model().to(BaselineConfig.train_device)
 
     logging('Training Baseline Model...')
-    criterion_baseline_model = nn.CrossEntropyLoss().to(BaselineConfig.train_device)
+    criterion_baseline_model = nn.CrossEntropyLoss().to(
+        BaselineConfig.train_device)
     optimizer_baseline_model = optim.Adam(
         model.parameters(),
-        lr=baseline_model_config_data[BaselineConfig.baseline_model].learning_rate[
-            BaselineConfig.dataset])
+        lr=baseline_model_config_data[BaselineConfig.baseline_model].
+        learning_rate[BaselineConfig.dataset])
     train_and_evaluate(model, train_data, test_data, criterion_baseline_model,
                        optimizer_baseline_model, cur_dir)
