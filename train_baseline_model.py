@@ -31,15 +31,17 @@ def train_bert_baseline_classifier(model, train_data, test_data,
             optimizer_baseline_model.step()
 
         loss_mean /= len(train_data)
-        print(f"epoch {epoch} train_loss is {loss_mean}")
+        logging(f"epoch {epoch} train_loss is {loss_mean}")
         eval_accuracy = eval_bert_baseline_classifier(model, test_data)
-        print(f"epoch {epoch} test_acc is {eval_accuracy}")
+        logging(f"epoch {epoch} test_acc is {eval_accuracy}")
         if best_accuracy < eval_accuracy:
             best_accuracy = eval_accuracy
             logging('Saveing baseline models...')
             torch.save(model.state_dict(), cur_dir + r'/baseline_model.pt')
         if loss_mean < 0.1:
+            logging(f'best accuracy is {best_accuracy}')
             break
+    logging(f'best accuracy is {best_accuracy}')
 
 
 def eval_bert_baseline_classifier(model, test_data):
@@ -76,15 +78,17 @@ def train_baseline_classifier(model, train_data, test_data,
             optimizer_baseline_model.step()
 
         loss_mean /= len(train_data)
-        print(f"epoch {epoch} train_loss is {loss_mean}")
+        logging(f"epoch {epoch} train_loss is {loss_mean}")
         eval_accuracy = eval_baseline_classifier(model, test_data)
-        print(f"epoch {epoch} test_acc is {eval_accuracy}")
+        logging(f"epoch {epoch} test_acc is {eval_accuracy}")
         if best_accuracy < eval_accuracy:
             best_accuracy = eval_accuracy
             logging('Saveing baseline models...')
             torch.save(model.state_dict(), cur_dir + r'/baseline_model.pt')
         if loss_mean < 0.1:
+            logging(f'best accuracy is {best_accuracy}')
             break
+    logging(f'best accuracy is {best_accuracy}')
 
 
 def eval_baseline_classifier(model, test_data):
