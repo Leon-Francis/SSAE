@@ -10,31 +10,6 @@ from torch.utils.data import DataLoader
 import torch
 from transformers import BertTokenizer
 from perturb import perturb
-import argparse
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', choices=config_dataset_list)
-parser.add_argument('--model', choices=config_model_lists)
-# parser.add_argument('--save_acc_limit', help='set a acc lower limit for saving model',
-#                     type=float, default=0.85)
-parser.add_argument('--epoch', type=int, default=20)
-parser.add_argument('--enhanced', type=parse_bool, choices=[True, False])
-parser.add_argument('--adv',
-                    choices=[True, False],
-                    default='no',
-                    type=parse_bool)
-parser.add_argument('--batch', type=int, default=64)
-parser.add_argument('--lr', type=float, default=1e-3)
-parser.add_argument('--note', type=str, default='')
-parser.add_argument('--load_model',
-                    choices=[True, False],
-                    default='no',
-                    type=parse_bool)
-parser.add_argument('--verbose',
-                    choices=[True, False],
-                    default='no',
-                    type=parse_bool)
-args = parser.parse_args()
 
 
 def train_Seq2Seq(train_data, model, criterion, optimizer, total_loss):
@@ -239,7 +214,6 @@ def save_config(dir):
 
 
 if __name__ == '__main__':
-    args = parser.parse_args()
     logging('Using cuda device gpu: ' + str(Config.train_device.index))
     cur_dir = Config.output_dir + '/gan_model/' + str(int(time.time()))
     cur_dir_models = cur_dir + '/models'
@@ -346,7 +320,6 @@ if __name__ == '__main__':
 
             if niter % 100 == 0:
                 # decaying noise
-                Seq2Seq_model_bert.noise_std *= 0.995
                 logging(
                     f'epoch {epoch}, niter {niter}:Loss_Seq2Seq: {total_loss_Seq2Seq / niter / Config.batch_size / 5}, Loss_gan_g: {total_loss_gan_g / niter / Config.batch_size / 5}, Loss_gan_a: {total_loss_gan_a / niter / Config.batch_size / 5}'
                 )

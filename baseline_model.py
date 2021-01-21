@@ -1,20 +1,28 @@
 import torch
 from torch import nn
 from torch.nn import init
-from transformers import BertModel, BertConfig
-from config import Config
+from torch.nn import functional as F
+from transformers import BertModel
+from config import Baseline_LSTMConfig
+from config import Baseline_BertConfig
+from config import Baseline_CNNConfig
+from config import AllConfig
+from tool import load_bert_vocab_embedding_vec
 
 
-class Baseline_Model_Bert(nn.Module):
-    def __init__(self):
-        super(Baseline_Model_Bert, self).__init__()
-        self.bert_config = BertConfig.from_pretrained('bert-base-uncased')
-        self.bert_model = BertModel.from_pretrained('bert-base-uncased',
-                                                    config=self.bert_config)
-        for param in self.bert_model.parameters():
-            param.requires_grad = False
-        self.linear = nn.Linear(Config.hidden_size, Config.label_num)
-        for params in self.linear.parameters():
+class Baseline_Model_Bert_Classification(nn.Module):
+    def __init__(self, dataset_config):
+        super(Baseline_Model_Bert_Classification, self).__init__()
+        self.bert_model = BertModel.from_pretrained('bert-base-uncased')
+        self.hidden_size = Baseline_BertConfig.hidden_size
+        if not Baseline_BertConfig.fine_tuning:
+            for param in self.bert_model.parameters():
+                param.requires_grad = False
+        self.fc = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(self.hidden_size, dataset_config.labels_num),
+        )
+        for params in self.fc.parameters():
             init.normal_(params, mean=0, std=0.01)
 
     def forward(self, inputs, inputs_mask):
@@ -33,167 +41,116 @@ class Baseline_Model_Bert(nn.Module):
         return logits
 
 
-class LSTMModel(nn.Module):
-    def __init__(self,
-                 num_hiddens: int,
-                 num_layers: int,
-                 word_dim: int,
-                 vocab: Vocab,
-                 labels: int,
-                 using_pretrained=True,
-                 bid=False,
-                 head_tail=False,
-                 syn=None,
-                 adv=False):
-        super(LSTMModel, self).__init__()
-        if bid:
-            self.model_name = 'BidLSTM' if syn is None else 'BidLSTM_enhanced'
-        else:
-            self.model_name = 'LSTM' if syn is None else 'LSTM_enhanced'
-        if adv:
-            assert syn is None
-            self.model_name += '_adv'
-        self.head_tail = head_tail
-        self.bid = bid
-        self.syn = syn
-
-        self.embedding_layer = nn.Embedding(vocab.num, word_dim)
-        self.embedding_layer.weight.requires_grad = True
-        if using_pretrained:
-            assert vocab.word_dim == word_dim
-            assert vocab.num == vocab.vectors.shape[0]
+class Baseline_Model_LSTM_Classification(nn.Module):
+    def __init__(self, dataset_config, bidirectional):
+        super(Baseline_Model_LSTM_Classification, self).__init__()
+        self.vocab_size = Baseline_LSTMConfig.vocab_size
+        self.embedding_size = Baseline_LSTMConfig.embedding_size
+        self.hidden_size = Baseline_LSTMConfig.hidden_size
+        self.num_layers = Baseline_LSTMConfig.num_layers
+        self.bidirectional = bidirectional
+        self.embedding_layer = nn.Embedding(self.vocab_size,
+                                            self.embedding_size)
+        if Baseline_LSTMConfig.using_pretrained:
             self.embedding_layer.from_pretrained(
-                torch.from_numpy(vocab.vectors))
+                torch.from_numpy(
+                    load_bert_vocab_embedding_vec(
+                        self.vocab_size, self.embedding_size,
+                        Baseline_LSTMConfig.vocab_path,
+                        Baseline_LSTMConfig.embedding_path)))
             self.embedding_layer.weight.requires_grad = False
+        else:
+            self.embedding_layer.weight.requires_grad = True
 
         self.dropout = nn.Dropout(0.5)
 
-        self.encoder = nn.LSTM(input_size=word_dim,
-                               hidden_size=num_hiddens,
-                               num_layers=num_layers,
-                               bidirectional=bid,
-                               dropout=0.3)
+        self.encoder = nn.LSTM(input_size=self.embedding_size,
+                               hidden_size=self.hidden_size,
+                               num_layers=self.num_layers,
+                               bidirectional=self.bidirectional,
+                               dropout=Baseline_LSTMConfig.dropout,
+                               batch_first=True)
 
-        # using bidrectional, *2
-        if bid:
-            num_hiddens *= 2
-        if head_tail:
-            num_hiddens *= 2
+        if self.bidirectional:
+            self.fc = nn.Sequential(
+                nn.Dropout(0.5),
+                nn.Linear(self.hidden_size * 2, dataset_config.labels_num),
+            )
+        else:
+            self.fc = nn.Sequential(
+                nn.Dropout(0.5),
+                nn.Linear(self.hidden_size, dataset_config.labels_num),
+            )
+        for params in self.fc.parameters():
+            init.normal_(params, mean=0, std=0.01)
 
-        self.fc = nn.Sequential(
-            nn.Dropout(0.5),
-            nn.Linear(num_hiddens, labels),
-        )
+    def initHidden(self, batch_size):
+        if self.bidirectional:
+            return (torch.rand(self.num_layers * 2, batch_size,
+                               self.hidden_size).to(AllConfig.train_device),
+                    torch.rand(self.num_layers * 2, batch_size,
+                               self.hidden_size).to(AllConfig.train_device))
+        else:
+            return (torch.rand(self.num_layers, batch_size,
+                               self.hidden_size).to(AllConfig.train_device),
+                    torch.rand(self.num_layers, batch_size,
+                               self.hidden_size).to(AllConfig.train_device))
 
-    def __random_mask(self, X):
-        for idx, one in enumerate(X):
-            X[idx], flag = self.syn.random_mask(one,
-                                                mask_low=config_RSE_mask_low,
-                                                mask_rate=config_RSE_mask_rate)
-        return X
+    def forward(self, X):
 
-    def forward(self, X: torch.Tensor, y=None):
-        if self.syn:
-            X = self.__random_mask(X)
-
-        X = X.permute(1, 0)  # [batch, seq_len] -> [seq_len, batch]
-        X = self.embedding_layer(X)  # [seq_len, batch, word_dim]
-
+        X = self.embedding_layer(X)  # [batch, sen_len, word_dim]
         X = self.dropout(X)
+        hidden = self.initHidden(X.shape[0])
+        outputs, _ = self.encoder(X, hidden)  # output, (hidden, memory)
+        # outputs [batch, seq_len, hidden*2] *2 means using bidrectional
 
-        outputs, _ = self.encoder(X)  # output, (hidden, memory)
-        # outputs [seq_len, batch, hidden*2] *2 means using bidrectional
-        # head and tail, [batch, hidden*4]
-
-        outputs = torch.cat(
-            (outputs[0], outputs[-1]), -1) if self.head_tail else outputs[-1]
-
-        outputs = self.fc(outputs)  # [batch, hidden*4] -> [batch, labels]
+        outputs = self.fc(outputs)  # [batch, hidden] -> [batch, labels]
 
         return outputs
 
-    def predict_prob(self, X: torch.Tensor, y_true: torch.Tensor) -> [float]:
-        if self.training:
-            raise RuntimeError(
-                'you shall take the model in eval to get probability!')
-        if X.dim() == 1:
-            X = X.view(1, -1)
-        if y_true.dim() == 0:
-            y_true = y_true.view(1)
 
-        with torch.no_grad():
-            logits = self(X)
-            logits = F.softmax(logits, dim=1)
-            prob = [logits[i][y_true[i]].item() for i in range(y_true.size(0))]
-            return prob
+class Baseline_Model_CNN_Classification(nn.Module):
+    def __init__(self, dataset_config):
+        super(Baseline_Model_CNN_Classification, self).__init__()
 
-    def predict_class(self, X: torch.Tensor) -> [int]:
-        if self.training:
-            raise RuntimeError(
-                'you shall take the model in eval to get probability!')
-        if X.dim() == 1:
-            X = X.view(1, -1)
-        predicts = None
-        with torch.no_grad():
-            logits = self(X)
-            logits = F.softmax(logits, dim=1)
-            predicts = [one.argmax(0).item() for one in logits]
-        return predicts
+        self.vocab_size = Baseline_CNNConfig.vocab_size
+        self.embedding_size = Baseline_CNNConfig.embedding_size
 
+        self.word_dim = self.embedding_size
+        self.embedding_train = nn.Embedding(self.vocab_size,
+                                            self.embedding_size)
 
-class TextCNN(nn.Module):
-    def __init__(self,
-                 vocab: Vocab,
-                 train_embedding_word_dim,
-                 is_static,
-                 using_pretrained,
-                 num_channels: list,
-                 kernel_sizes: list,
-                 labels: int,
-                 syn=None,
-                 adv=False):
-        super(TextCNN, self).__init__()
-        self.model_name = 'TextCNN' if syn is None else 'TextCNN_enhanced'
-        if adv:
-            assert syn is None
-            self.model_name += '_adv'
-
-        self.syn = syn
-        self.using_pretrained = using_pretrained
-        self.word_dim = train_embedding_word_dim
-        if using_pretrained:
-            self.word_dim += vocab.word_dim
-
-        if using_pretrained:
-            self.embedding_pre = nn.Embedding(vocab.num, vocab.word_dim)
-            self.embedding_pre.from_pretrained(torch.from_numpy(vocab.vectors))
-            self.embedding_pre.weight.requires_grad = not is_static
-
-        self.embedding_train = nn.Embedding(vocab.num,
-                                            train_embedding_word_dim)
+        if Baseline_CNNConfig.using_pretrained:
+            self.embedding_pre = nn.Embedding(self.vocab_size,
+                                              self.embedding_size)
+            self.embedding_pre.from_pretrained(
+                torch.from_numpy(
+                    load_bert_vocab_embedding_vec(
+                        self.vocab_size, self.embedding_size,
+                        Baseline_CNNConfig.vocab_path,
+                        Baseline_CNNConfig.embedding_path)))
+            self.embedding_pre.weight.requires_grad = False
+            self.word_dim *= 2
 
         self.pool = nn.AdaptiveMaxPool1d(output_size=1)
 
+        self.channel_size = [self.word_dim] + Baseline_CNNConfig.channel_size
+        self.kernel_size = Baseline_CNNConfig.kernel_size
         self.convs = nn.ModuleList()
-        for c, k in zip(num_channels, kernel_sizes):
+        for i in range(len(self.kernel_size)):
             self.convs.append(
-                nn.Conv1d(in_channels=self.word_dim,
-                          out_channels=c,
-                          kernel_size=k))
+                nn.Conv1d(in_channels=self.channel_size[i],
+                          out_channels=self.channel_size[i + 1],
+                          kernel_size=self.kernel_size[i]))
 
         self.dropout = nn.Dropout(0.5)
-        self.fc = nn.Linear(sum(num_channels), labels)
-
-    def __random_mask(self, X):
-        for idx, one in enumerate(X):
-            X[idx], flag = self.syn.random_mask(one,
-                                                mask_low=config_RSE_mask_low,
-                                                mask_rate=config_RSE_mask_rate)
-        return X
+        self.fc = nn.Linear(sum(Baseline_CNNConfig.channel_size),
+                            dataset_config.labels_num)
+        for params in self.fc.parameters():
+            init.normal_(params, mean=0, std=0.01)
 
     def forward(self, X: torch.Tensor):
-        if self.syn:
-            X = self.__random_mask(X)
+
         if self.using_pretrained:
             embeddings = torch.cat(
                 (
@@ -217,31 +174,3 @@ class TextCNN(nn.Module):
 
         logits = self.fc(outs)
         return logits
-
-    def predict_prob(self, X: torch.Tensor, y_true: torch.Tensor) -> [float]:
-        if self.training:
-            raise RuntimeError(
-                'you shall take the model in eval to get probability!')
-        if X.dim() == 1:
-            X = X.view(1, -1)
-        if y_true.dim() == 0:
-            y_true = y_true.view(1)
-
-        with torch.no_grad():
-            logits = self(X)
-            logits = F.softmax(logits, dim=1)
-            prob = [logits[i][y_true[i]].item() for i in range(y_true.size(0))]
-            return prob
-
-    def predict_class(self, X: torch.Tensor) -> [int]:
-        if self.training:
-            raise RuntimeError(
-                'you shall take the model in eval to get probability!')
-        if X.dim() == 1:
-            X = X.view(1, -1)
-        predicts = None
-        with torch.no_grad():
-            logits = self(X)
-            logits = F.softmax(logits, dim=1)
-            predicts = [one.argmax(0).item() for one in logits]
-        return predicts

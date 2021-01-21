@@ -10,7 +10,6 @@ from torch import optim
 class Seq2Seq_bert(nn.Module):
     def __init__(self, hidden_size, num_layers=1, dropout=0.0, noise_std=0.2):
         super(Seq2Seq_bert, self).__init__()
-        self.seq_len = Config.sen_len
         self.dropout = dropout
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -151,16 +150,23 @@ class MLP_A(nn.Module):
 
 
 class LSTM_G(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, dropout=0):
+    def __init__(self,
+                 input_size,
+                 hidden_size,
+                 num_layers,
+                 bidirectional=False,
+                 dropout=0):
         super(LSTM_G, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.dropout = dropout
+        self.bidirectional = bidirectional
         self.lstm = nn.LSTM(input_size=self.input_size,
                             hidden_size=self.hidden_size,
                             num_layers=self.num_layers,
                             dropout=self.dropout,
+                            bidirectional=self.bidirectional,
                             batch_first=True)
 
     def initHidden(self, batch_size):
@@ -170,8 +176,10 @@ class LSTM_G(nn.Module):
                     torch.rand(self.num_layers * 2, batch_size,
                                self.hidden_size).to(Config.train_device))
         else:
-            return (torch.rand(self.num_layers, batch_size, self.hidden_size).to(Config.train_device),
-                    torch.rand(self.num_layers, batch_size, self.hidden_size).to(Config.train_device))
+            return (torch.rand(self.num_layers, batch_size,
+                               self.hidden_size).to(Config.train_device),
+                    torch.rand(self.num_layers, batch_size,
+                               self.hidden_size).to(Config.train_device))
 
     def forward(self, inputs):
         # input: [batch_size, sen_len, super_hidden_size]
@@ -181,16 +189,23 @@ class LSTM_G(nn.Module):
 
 
 class LSTM_A(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, dropout=0):
+    def __init__(self,
+                 input_size,
+                 hidden_size,
+                 num_layers,
+                 bidirectional=False,
+                 dropout=0):
         super(LSTM_A, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.dropout = dropout
+        self.bidirectional = bidirectional
         self.lstm = nn.LSTM(input_size=self.input_size,
                             hidden_size=self.hidden_size,
                             num_layers=self.num_layers,
                             dropout=self.dropout,
+                            bidirectional=self.bidirectional,
                             batch_first=True)
 
     def initHidden(self, batch_size):
@@ -200,8 +215,10 @@ class LSTM_A(nn.Module):
                     torch.rand(self.num_layers * 2, batch_size,
                                self.hidden_size).to(Config.train_device))
         else:
-            return (torch.rand(self.num_layers, batch_size, self.hidden_size).to(Config.train_device),
-                    torch.rand(self.num_layers, batch_size, self.hidden_size).to(Config.train_device))
+            return (torch.rand(self.num_layers, batch_size,
+                               self.hidden_size).to(Config.train_device),
+                    torch.rand(self.num_layers, batch_size,
+                               self.hidden_size).to(Config.train_device))
 
     def forward(self, inputs):
         # input: [batch_size, sen_len, hidden_size]

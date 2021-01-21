@@ -8,7 +8,10 @@ from transformers import BertTokenizer
 
 class AGNEWS_Dataset(Dataset):
     """
-    data_idx = seq, data_mask = mask of seq, label_idx = seq + 1, classification_label
+    data_idx = seq,
+    data_mask = mask of seq,
+    label_idx = seq + 1,
+    classification_label
     """
     def __init__(self, train_data=True, debug_mode=False):
         super(AGNEWS_Dataset, self).__init__()
@@ -96,7 +99,10 @@ class AGNEWS_Dataset(Dataset):
 
 class IMDB_Dataset(Dataset):
     """
-    data_idx = seq, data_mask = mask of seq, label_idx = seq + 1, classification_label
+    data_idx = seq,
+    data_mask = mask of seq,
+    label_idx = seq + 1,
+    classification_label
     """
     def __init__(self, train_data=True, debug_mode=False):
         super(IMDB_Dataset, self).__init__()
