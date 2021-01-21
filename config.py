@@ -5,11 +5,11 @@ glove_embedding_size = 100
 config_path = './config.py'
 
 
-class AllConfig():
+class BaselineConfig():
     output_dir = r'./output'
-    cuda_idx = 3
+    cuda_idx = 1
     train_device = torch.device('cuda:' + str(cuda_idx))
-    dataset = 'AGNEWS'  # choices = 'IMDB', 'AGNEWS', 'SNLI'
+    dataset = 'IMDB'  # choices = 'IMDB', 'AGNEWS', 'SNLI'
     baseline_model = 'BERT'  # choices = 'LSTM', 'CNN', 'BidLSTM', 'BERT'
     debug_mode = False
     epochs = 20
