@@ -12,6 +12,7 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir):
     with torch.no_grad():
         attack_succeeded_num = 0
         attack_num = 0
+        attack_count_num = 0
         with open(dir, "a") as f:
             for x, x_mask, y, label in data:
                 x, x_mask, y, label = x.to(Config.train_device), x_mask.to(
@@ -24,7 +25,8 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir):
                 z = gan_adv(c)
 
                 for i in range(len(y)):
-                    f.write("==================================================\n")
+                    f.write(
+                        "==================================================\n")
                     f.write('Orginal sentence: \n')
                     f.write(' '.join(tokenizer.convert_ids_to_tokens(y[i])) +
                             "\n" * 2)
@@ -35,7 +37,9 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir):
                         baseline_model,
                         label[i],
                         z[i],
-                        samples_num=5)
+                        samples_num=5,
+                        right=Config.search_bound)
+                    attack_count_num += counter
                     attack_num += 1
                     if successed:
                         attack_succeeded_num += 1
@@ -53,7 +57,8 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir):
                         f.write('\nAll attack samples as follows: \n')
                         for i, perturb_x_sample in enumerate(perturb_x):
                             f.write(' '.join(
-                                tokenizer.convert_ids_to_tokens(perturb_x_sample)))
+                                tokenizer.convert_ids_to_tokens(
+                                    perturb_x_sample)))
                             if successed_mask[i]:
                                 f.write('    attact successed!')
                             else:
@@ -69,9 +74,12 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir):
                         f.write('\nAll attack samples as follows: \n')
                         for i, perturb_x_sample in enumerate(perturb_x):
                             f.write(' '.join(
-                                tokenizer.convert_ids_to_tokens(perturb_x_sample)))
+                                tokenizer.convert_ids_to_tokens(
+                                    perturb_x_sample)))
                             f.write('\n')
-            f.write(f'attact success acc:{attack_succeeded_num / attack_num}\n')
+            f.write(
+                f'attact success acc:{attack_succeeded_num / attack_num}\n')
+            f.write(f'avg attack try times:{attack_count_num / attack_num}\n')
 
 
 def search_fast(Seq2Seq_model,
