@@ -10,8 +10,9 @@ class AllConfig():
     cuda_idx = 0
     train_device = torch.device('cuda:' + str(cuda_idx))
     dataset = 'AGNEWS'  # choices = 'IMDB', 'AGNEWS', 'SNLI'
-    baseline_model = 'BERT'  # choices = 'LSTM', 'CNN', 'BidLSTM', 'BERT'
+    baseline_model = 'LSTM'  # choices = 'LSTM', 'CNN', 'BidLSTM', 'BERT'
     debug_mode = True
+    epochs = 20
     batch_size = 64
 
 

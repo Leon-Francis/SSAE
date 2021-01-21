@@ -47,12 +47,12 @@ def eval_bert_baseline_classifier(model, test_data):
         model.eval()
         acc_sum = 0
         n = 0
-        for x, x_mask, y in test_data:
-            x, x_mask, y = x.to(AllConfig.train_device), x_mask.to(
-                AllConfig.train_device), y.to(AllConfig.train_device)
+        for x, x_mask, _, label in test_data:
+            x, x_mask, label = x.to(AllConfig.train_device), x_mask.to(
+                AllConfig.train_device), label.to(AllConfig.train_device)
             logits = model(x, x_mask)
-            acc_sum += (logits.argmax(dim=1) == y).float().sum().item()
-            n += y.shape[0]
+            acc_sum += (logits.argmax(dim=1) == label).float().sum().item()
+            n += label.shape[0]
         return acc_sum / n
 
 
@@ -92,11 +92,12 @@ def eval_baseline_classifier(model, test_data):
         model.eval()
         acc_sum = 0
         n = 0
-        for x, _, y in test_data:
-            x, y = x.to(AllConfig.train_device), y.to(AllConfig.train_device)
+        for x, _, _, label in test_data:
+            x, label = x.to(AllConfig.train_device), label.to(
+                AllConfig.train_device)
             logits = model(x)
-            acc_sum += (logits.argmax(dim=1) == y).float().sum().item()
-            n += y.shape[0]
+            acc_sum += (logits.argmax(dim=1) == label).float().sum().item()
+            n += label.shape[0]
         return acc_sum / n
 
 

@@ -7,7 +7,7 @@ from config import Baseline_LSTMConfig
 from config import Baseline_BertConfig
 from config import Baseline_CNNConfig
 from config import AllConfig
-from tool import load_bert_vocab_embedding_vec
+from tools import load_bert_vocab_embedding_vec
 
 
 class Baseline_Model_Bert_Classification(nn.Module):
@@ -37,7 +37,7 @@ class Baseline_Model_Bert_Classification(nn.Module):
         """
         encoder, pooled = self.bert_model(inputs,
                                           attention_mask=inputs_mask)[:]
-        logits = self.linear(pooled)
+        logits = self.fc(pooled)
         return logits
 
 
