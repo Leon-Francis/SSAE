@@ -272,12 +272,12 @@ if __name__ == '__main__':
                    map_location=AttackConfig.train_device))
 
     # init optimizer
-    optimizer_Seq2Seq = optim.Adam(Seq2Seq_model.parameters(),
-                                   lr=AttackConfig.Seq2Seq_learning_rate)
-    optimizer_gan_g = optim.Adam(gan_gen.parameters(),
-                                 lr=AttackConfig.gan_gen_learning_rate)
-    optimizer_gan_a = optim.Adam(gan_adv.parameters(),
-                                 lr=AttackConfig.gan_adv_learning_rate)
+    optimizer_Seq2Seq = optim.AdamW(Seq2Seq_model.parameters(),
+                                    lr=AttackConfig.Seq2Seq_learning_rate)
+    optimizer_gan_g = optim.AdamW(gan_gen.parameters(),
+                                  lr=AttackConfig.gan_gen_learning_rate)
+    optimizer_gan_a = optim.AdamW(gan_adv.parameters(),
+                                  lr=AttackConfig.gan_adv_learning_rate)
     # init criterion
     criterion_ce = nn.CrossEntropyLoss().to(AttackConfig.train_device)
     criterion_mse = nn.MSELoss().to(AttackConfig.train_device)
