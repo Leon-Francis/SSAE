@@ -6,7 +6,6 @@ from transformers import BertModel
 from config import Baseline_LSTMConfig
 from config import Baseline_BertConfig
 from config import Baseline_CNNConfig
-from config import AllConfig
 from tools import load_bert_vocab_embedding_vec
 
 
@@ -68,42 +67,33 @@ class Baseline_Model_LSTM_Classification(nn.Module):
                                hidden_size=self.hidden_size,
                                num_layers=self.num_layers,
                                bidirectional=self.bidirectional,
-                               dropout=Baseline_LSTMConfig.dropout,
-                               batch_first=True)
+                               dropout=Baseline_LSTMConfig.dropout)
 
+        hidden_size = self.hidden_size
         if self.bidirectional:
-            self.fc = nn.Sequential(
-                nn.Dropout(0.5),
-                nn.Linear(self.hidden_size * 2, dataset_config.labels_num),
-            )
-        else:
-            self.fc = nn.Sequential(
-                nn.Dropout(0.5),
-                nn.Linear(self.hidden_size, dataset_config.labels_num),
-            )
+            hidden_size = hidden_size * 2
+        if Baseline_LSTMConfig.head_tail:
+            hidden_size = hidden_size * 2
+
+        self.fc = nn.Sequential(
+            nn.Dropout(0.5), nn.Linear(hidden_size, dataset_config.labels_num))
+
         for params in self.fc.parameters():
             init.normal_(params, mean=0, std=0.01)
-
-    def initHidden(self, batch_size):
-        if self.bidirectional:
-            return (torch.rand(self.num_layers * 2, batch_size,
-                               self.hidden_size).to(AllConfig.train_device),
-                    torch.rand(self.num_layers * 2, batch_size,
-                               self.hidden_size).to(AllConfig.train_device))
-        else:
-            return (torch.rand(self.num_layers, batch_size,
-                               self.hidden_size).to(AllConfig.train_device),
-                    torch.rand(self.num_layers, batch_size,
-                               self.hidden_size).to(AllConfig.train_device))
 
     def forward(self, X):
 
         X = self.embedding_layer(X)  # [batch, sen_len, word_dim]
         X = self.dropout(X)
-        hidden = self.initHidden(X.shape[0])
-        outputs, _ = self.encoder(X, hidden)  # output, (hidden, memory)
-        # outputs [batch, seq_len, hidden*2] *2 means using bidrectional
-
+        # X: [sen_len, batch, word_dim]
+        X = X.permute(1, 0, 2)
+        outputs, hidden = self.encoder(X)  # output, (hidden, memory)
+        # outputs [sen_len, batch, hidden]
+        # outputs [sen_len, batch, hidden*2] *2 means using bidrectional
+        if Baseline_LSTMConfig.head_tail:
+            outputs = torch.cat((outputs[0], outputs[-1]), -1)
+        else:
+            outputs = outputs[-1]
         outputs = self.fc(outputs)  # [batch, hidden] -> [batch, labels]
 
         return outputs
@@ -149,9 +139,9 @@ class Baseline_Model_CNN_Classification(nn.Module):
         for params in self.fc.parameters():
             init.normal_(params, mean=0, std=0.01)
 
-    def forward(self, X: torch.Tensor):
+    def forward(self, X):
 
-        if self.using_pretrained:
+        if Baseline_CNNConfig.using_pretrained:
             embeddings = torch.cat(
                 (
                     self.embedding_train(X),

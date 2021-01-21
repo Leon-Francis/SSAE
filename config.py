@@ -7,11 +7,11 @@ config_path = './config.py'
 
 class AllConfig():
     output_dir = r'./output'
-    cuda_idx = 0
+    cuda_idx = 3
     train_device = torch.device('cuda:' + str(cuda_idx))
     dataset = 'AGNEWS'  # choices = 'IMDB', 'AGNEWS', 'SNLI'
-    baseline_model = 'LSTM'  # choices = 'LSTM', 'CNN', 'BidLSTM', 'BERT'
-    debug_mode = True
+    baseline_model = 'BERT'  # choices = 'LSTM', 'CNN', 'BidLSTM', 'BERT'
+    debug_mode = False
     epochs = 20
     batch_size = 64
 
@@ -56,6 +56,7 @@ class Baseline_LSTMConfig():
     hidden_size = 100
     num_layers = 2
     using_pretrained = True
+    head_tail = True
     dropout = 0.3
     learning_rate = {'IMDB': 1e-3, 'AGNEWS': 1e-3, 'SNLI': 1e-3}
 
@@ -65,7 +66,7 @@ class Baseline_CNNConfig():
     embedding_size = glove_embedding_size
     vocab_path = r'./static/vocab.txt'
     embedding_path = r'./static/glove.6B.100d.txt'
-    channel_size = [100, 100, 100]
+    channel_size = [200, 200, 200]
     kernel_size = [3, 4, 5]
     using_pretrained = True
     dropout = 0.3
