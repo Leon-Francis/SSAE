@@ -7,23 +7,24 @@ config_path = './config.py'
 
 class AttackConfig():
     output_dir = r'./output'
-    train_multi_cuda = True
-    cuda_idx = 0
+    train_multi_cuda = False
+    cuda_idx = 1
     if train_multi_cuda:
         multi_cuda_idx = [0, 1, 2, 3]
         cuda_idx = multi_cuda_idx[0]
     train_device = torch.device('cuda:' + str(cuda_idx))
     dataset = 'AGNEWS'  # choices = 'IMDB', 'AGNEWS', 'SNLI'
-    baseline_model = 'BERT'  # choices = 'LSTM', 'CNN', 'BidLSTM', 'BERT'
+    baseline_model = 'CNN'  # choices = 'LSTM', 'CNN', 'BidLSTM', 'BERT'
     debug_mode = False
     epochs = 20
     batch_size = 128
 
     load_pretrained_Seq2Seq = False
-    fine_tuning = True
+    head_tail = False
+    fine_tuning = False
 
     if fine_tuning:
-        Seq2Seq_learning_rate = 2e-5
+        Seq2Seq_learning_rate = 5e-6
         warmup = 0.05
     else:
         Seq2Seq_learning_rate = 1e-3
@@ -41,7 +42,8 @@ class AttackConfig():
     gan_gen_train_times = 1
     gan_adv_train_times = 1
 
-    perturb_sample_num = 5
+    perturb_sample_num = 20
+    perturb_search_times = 1
     perturb_search_bound = 0.005
 
 

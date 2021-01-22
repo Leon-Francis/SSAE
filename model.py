@@ -17,11 +17,15 @@ class Seq2Seq_bert(nn.Module):
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.noise_std = noise_std
-        self.encoder = BertModel.from_pretrained('bert-base-uncased')
+        self.encoder = BertModel.from_pretrained('bert-base-uncased',
+                                                 output_hidden_states=True)
         if not AttackConfig.fine_tuning:
             for param in self.encoder.parameters():
                 param.requires_grad = False
-        self.decoder = nn.LSTM(input_size=AttackConfig.hidden_size,
+        decoder_input_size = AttackConfig.hidden_size
+        if AttackConfig.head_tail:
+            decoder_input_size *= 2
+        self.decoder = nn.LSTM(input_size=decoder_input_size,
                                hidden_size=self.hidden_size,
                                num_layers=self.num_layers,
                                dropout=self.dropout)
@@ -40,18 +44,20 @@ class Seq2Seq_bert(nn.Module):
         Returns:
             torch.tensor: hidden # [batch, seq_len, hidden_size]
         """
-        encoders, pooled = self.encoder(inputs, attention_mask=inputs_mask)[:]
+        encoders, pooled, all_hidden_states = self.encoder(
+            inputs, attention_mask=inputs_mask)[:]
         # pooled [batch, hidden_size]
         # hidden [batch, seq_len, hidden_size]
         hidden = encoders
+        state = all_hidden_states[0]
         if is_noise:
             gaussian_noise = torch.normal(mean=torch.zeros_like(hidden),
                                           std=self.noise_std)
             gaussian_noise.to(AttackConfig.train_device)
             hidden += gaussian_noise
-        return hidden
+        return hidden, state
 
-    def decode(self, hidden):
+    def decode(self, hidden, state=None):
         """lstm_based_decode
             without inputs_embedding
         Args:
@@ -63,8 +69,9 @@ class Seq2Seq_bert(nn.Module):
         """
         # hidden [batch, seq_len, hidden_size]
         # state [batch, seq_len, hidden_size]
-        "all_hidden = torch.cat([state, hidden], 2)"
-        # all_hidden [batch, seq_len, hidden_size * 2]
+        if AttackConfig.head_tail:
+            # hidden [batch, seq_len, hidden_size * 2]
+            hidden = torch.cat([state, hidden], 2)
         self.decoder.flatten_parameters()
         outputs, _ = self.decoder(hidden.permute(1, 0, 2))
         outputs = self.fc(outputs).permute(1, 0, 2)
@@ -91,17 +98,17 @@ class Seq2Seq_bert(nn.Module):
         Returns:
             torch.tensor: outputs [batch, seq_len, vocab_size]
         """
-        hidden = self.encode(inputs,
-                             inputs_mask=inputs_mask,
-                             is_noise=is_noise)
+        hidden, state = self.encode(inputs,
+                                    inputs_mask=inputs_mask,
+                                    is_noise=is_noise)
         if encode_only:
             return hidden
         if not generator:
-            decoded = self.decode(hidden)
+            decoded = self.decode(hidden, state)
         else:
             z_hat = adversary(hidden)
             c_hat = generator(z_hat)
-            decoded = self.decode(c_hat)
+            decoded = self.decode(c_hat, state)
         return decoded
 
 
