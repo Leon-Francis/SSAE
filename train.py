@@ -19,7 +19,7 @@ def train_Seq2Seq(train_data, model, criterion, optimizer, total_loss):
     x, x_mask, y = x.to(AttackConfig.train_device), x_mask.to(
         AttackConfig.train_device), y.to(AttackConfig.train_device)
     logits = model(x, x_mask, is_noise=False)
-    optimizer.zero_grad()
+    model.zero_grad()
     logits = logits.reshape(-1, logits.shape[-1])
     y = y.reshape(-1)
     loss = criterion(logits, y)

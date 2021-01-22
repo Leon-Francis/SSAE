@@ -7,21 +7,27 @@ from torch import optim
 
 
 class Seq2Seq_bert(nn.Module):
-    def __init__(self, hidden_size, num_layers=1, dropout=0.0, noise_std=0.2):
+    def __init__(self,
+                 hidden_size=AttackConfig.hidden_size,
+                 num_layers=AttackConfig.num_layers,
+                 dropout=AttackConfig.dropout,
+                 noise_std=0.2):
         super(Seq2Seq_bert, self).__init__()
         self.dropout = dropout
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.noise_std = noise_std
-        self.encoder = BertModel.from_pretrained('bert-base-uncased',
-                                                 output_hidden_states=True)
-        for param in self.encoder.parameters():
-            param.requires_grad = False
+        self.encoder = BertModel.from_pretrained('bert-base-uncased')
+        if not AttackConfig.fine_tuning:
+            for param in self.encoder.parameters():
+                param.requires_grad = False
         self.decoder = nn.LSTM(input_size=AttackConfig.hidden_size,
                                hidden_size=self.hidden_size,
                                num_layers=self.num_layers,
                                dropout=self.dropout)
-        self.mlp_decoder = nn.Linear(self.hidden_size, AttackConfig.vocab_size)
+        self.fc = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(self.hidden_size, AttackConfig.vocab_size))
 
     def encode(self, inputs, inputs_mask, is_noise=False):
         """bert_based_encode
@@ -34,18 +40,16 @@ class Seq2Seq_bert(nn.Module):
         Returns:
             torch.tensor: hidden # [batch, seq_len, hidden_size]
         """
-        encoders, pooled, all_hidden_states = self.encoder(
-            inputs, attention_mask=inputs_mask)[:]
+        encoders, pooled = self.encoder(inputs, attention_mask=inputs_mask)[:]
         # pooled [batch, hidden_size]
         # hidden [batch, seq_len, hidden_size]
         hidden = encoders
-        state = all_hidden_states[0]  # embedding
         if is_noise:
             gaussian_noise = torch.normal(mean=torch.zeros_like(hidden),
                                           std=self.noise_std)
             gaussian_noise.to(AttackConfig.train_device)
             hidden += gaussian_noise
-        return hidden, state
+        return hidden
 
     def decode(self, hidden):
         """lstm_based_decode
@@ -61,8 +65,9 @@ class Seq2Seq_bert(nn.Module):
         # state [batch, seq_len, hidden_size]
         "all_hidden = torch.cat([state, hidden], 2)"
         # all_hidden [batch, seq_len, hidden_size * 2]
+        self.decoder.flatten_parameters()
         outputs, _ = self.decoder(hidden.permute(1, 0, 2))
-        outputs = self.mlp_decoder(outputs).permute(1, 0, 2)
+        outputs = self.fc(outputs).permute(1, 0, 2)
         # outputs [batch, seq_len, vocab_size]
         return outputs
 
@@ -86,9 +91,9 @@ class Seq2Seq_bert(nn.Module):
         Returns:
             torch.tensor: outputs [batch, seq_len, vocab_size]
         """
-        hidden, state = self.encode(inputs,
-                                    inputs_mask=inputs_mask,
-                                    is_noise=is_noise)
+        hidden = self.encode(inputs,
+                             inputs_mask=inputs_mask,
+                             is_noise=is_noise)
         if encode_only:
             return hidden
         if not generator:
@@ -170,22 +175,9 @@ class LSTM_G(nn.Module):
                             bidirectional=self.bidirectional,
                             batch_first=True)
 
-    def initHidden(self, batch_size):
-        if self.lstm.bidirectional:
-            return (torch.rand(self.num_layers * 2, batch_size,
-                               self.hidden_size).to(AttackConfig.train_device),
-                    torch.rand(self.num_layers * 2, batch_size,
-                               self.hidden_size).to(AttackConfig.train_device))
-        else:
-            return (torch.rand(self.num_layers, batch_size,
-                               self.hidden_size).to(AttackConfig.train_device),
-                    torch.rand(self.num_layers, batch_size,
-                               self.hidden_size).to(AttackConfig.train_device))
-
     def forward(self, inputs):
         # input: [batch_size, sen_len, super_hidden_size]
-        self.hidden = self.initHidden(inputs.shape[0])
-        out, self.hidden = self.lstm(inputs, self.hidden)
+        out, self.hidden = self.lstm(inputs)
         return out
 
 
@@ -209,22 +201,9 @@ class LSTM_A(nn.Module):
                             bidirectional=self.bidirectional,
                             batch_first=True)
 
-    def initHidden(self, batch_size):
-        if self.lstm.bidirectional:
-            return (torch.rand(self.num_layers * 2, batch_size,
-                               self.hidden_size).to(AttackConfig.train_device),
-                    torch.rand(self.num_layers * 2, batch_size,
-                               self.hidden_size).to(AttackConfig.train_device))
-        else:
-            return (torch.rand(self.num_layers, batch_size,
-                               self.hidden_size).to(AttackConfig.train_device),
-                    torch.rand(self.num_layers, batch_size,
-                               self.hidden_size).to(AttackConfig.train_device))
-
     def forward(self, inputs):
         # input: [batch_size, sen_len, hidden_size]
-        self.hidden = self.initHidden(inputs.shape[0])
-        out, self.hidden = self.lstm(inputs, self.hidden)
+        out, self.hidden = self.lstm(inputs)
         return out
 
 

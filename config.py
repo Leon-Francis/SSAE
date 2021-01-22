@@ -7,32 +7,42 @@ config_path = './config.py'
 
 class AttackConfig():
     output_dir = r'./output'
+    train_multi_cuda = True
     cuda_idx = 0
+    if train_multi_cuda:
+        multi_cuda_idx = [0, 1, 2, 3]
+        cuda_idx = multi_cuda_idx[0]
     train_device = torch.device('cuda:' + str(cuda_idx))
     dataset = 'AGNEWS'  # choices = 'IMDB', 'AGNEWS', 'SNLI'
     baseline_model = 'BERT'  # choices = 'LSTM', 'CNN', 'BidLSTM', 'BERT'
-    debug_mode = True
+    debug_mode = False
     epochs = 20
     batch_size = 128
 
-    Seq2Seq_learning_rate = 1e-3
+    load_pretrained_Seq2Seq = False
+    fine_tuning = True
+
+    if fine_tuning:
+        Seq2Seq_learning_rate = 2e-5
+        warmup = 0.05
+    else:
+        Seq2Seq_learning_rate = 1e-3
     gan_gen_learning_rate = 1e-3
     gan_adv_learning_rate = 1e-3
 
     hidden_size = 768
+    num_layers = 3
+    dropout = 0.3
     super_hidden_size = 500
     vocab_size = bert_vocab_size
 
     gan_schedule = [1, 3, 5]
     seq2seq_train_times = 1
-    gan_gen_train_times = 5
+    gan_gen_train_times = 1
     gan_adv_train_times = 1
 
     perturb_sample_num = 5
-    perturb_search_bound = 0.05
-
-    load_pretrained_Seq2Seq = False
-    fine_tuning = False
+    perturb_search_bound = 0.005
 
 
 class BaselineConfig():
@@ -110,8 +120,6 @@ class Baseline_BertConfig():
     learning_rate = {'IMDB': 1e-3, 'AGNEWS': 1e-3, 'SNLI': 1e-3}
 
 
-# class Baseline_TestConfig():
-
 dataset_config_data = {
     'IMDB': IMDBConfig,
     'AGNEWS': AGNEWSConfig,
@@ -135,16 +143,24 @@ dataset_list = [
 
 baseline_model_load_path = {
     'IMDB': {
-        'LSTM': r'./output/baseline_model/IMDB/LSTM/1611247993/baseline_model.pt',
-        'CNN': r'./output/baseline_model/IMDB/CNN/1611248030/baseline_model.pt',
-        'BidLSTM': r'./output/baseline_model/IMDB/BidLSTM/1611248060/baseline_model.pt',
-        'BERT': r'./output/baseline_model/IMDB/BERT/1611248987/baseline_model.pt',
+        'LSTM':
+        r'./output/baseline_model/IMDB/LSTM/1611247993/baseline_model.pt',
+        'CNN':
+        r'./output/baseline_model/IMDB/CNN/1611248030/baseline_model.pt',
+        'BidLSTM':
+        r'./output/baseline_model/IMDB/BidLSTM/1611248060/baseline_model.pt',
+        'BERT':
+        r'./output/baseline_model/IMDB/BERT/1611248987/baseline_model.pt',
     },
     'AGNEWS': {
-        'LSTM': r'./output/baseline_model/AGNEWS/LSTM/1611246841/baseline_model.pt',
-        'BidLSTM': r'./output/baseline_model/AGNEWS/BidLSTM/1611246875/baseline_model.pt',
-        'CNN': r'./output/baseline_model/AGNEWS/CNN/1611246902/baseline_model.pt',
-        'BERT': r'./output/baseline_model/AGNEWS/BERT/1611246760/baseline_model.pt',
+        'LSTM':
+        r'./output/baseline_model/AGNEWS/LSTM/1611246841/baseline_model.pt',
+        'BidLSTM':
+        r'./output/baseline_model/AGNEWS/BidLSTM/1611246875/baseline_model.pt',
+        'CNN':
+        r'./output/baseline_model/AGNEWS/CNN/1611246902/baseline_model.pt',
+        'BERT':
+        r'./output/baseline_model/AGNEWS/BERT/1611246760/baseline_model.pt',
     },
     'SNLI': {}
 }
