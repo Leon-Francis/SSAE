@@ -106,8 +106,8 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
     baseline_model.eval()
     with torch.no_grad():
         search_bound = right
-        counter = 0
-        while counter < 5:
+        counter = 1
+        while counter <= 5:
             # search_z: [samples_num, sen_len, super_hidden_size]
             search_z = z.repeat(samples_num, 1, 1)
             delta = torch.FloatTensor(search_z.size()).uniform_(
