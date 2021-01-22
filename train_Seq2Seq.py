@@ -71,7 +71,7 @@ def evaluate_Seq2Seq(test_data, Seq2Seq_model, path):
                         tokenizer.convert_ids_to_tokens(outputs_idx[i])) +
                             '\n' * 2)
 
-    return acc_sum / n
+        return acc_sum / n
 
 
 def build_dataset():
