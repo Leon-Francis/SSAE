@@ -39,7 +39,7 @@ class AttackConfig():
 
     gan_schedule = [1, 3, 5]
     seq2seq_train_times = 1
-    gan_gen_train_times = 1
+    gan_gen_train_times = 5
     gan_adv_train_times = 1
 
     perturb_sample_num = 20
