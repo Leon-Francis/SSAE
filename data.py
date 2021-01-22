@@ -216,7 +216,7 @@ class SNLI_Dataset(Dataset):
         else:
             self.path = SNLIConfig.test_data_path
         self.sentences_path = SNLIConfig.sentences_data_path
-        self.sentences = self.read_standard_sentences()
+        self.sentences = self.read_standard_sentences(self.sentences_path)
         self.premise_data, self.hypothesis_data, self.classification_label = self.read_standard_data(
             self.path, self.sentences, debug_mode)
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
@@ -243,7 +243,7 @@ class SNLI_Dataset(Dataset):
         with open(path, 'r', encoding='utf-8') as file:
             for line in file:
                 tokens = line.strip().split('\t')
-                sentences_id[tokens[0]] = tokens[1].strip()
+                sentences_id[int(tokens[0].strip())] = tokens[1].strip()
         return sentences_id
 
     def read_standard_data(self, path, sentences, debug_mode=False):
@@ -334,9 +334,8 @@ class SNLI_Dataset(Dataset):
                                   self.hypothesis_data_idx[i])
             self.whole_mask.append(self.premise_data_mask[i] +
                                    self.hypothesis_data_mask[i])
-            self.whole_type.append([0] *
-                                   len(self.premise_data_idx[i] +
-                                       [1] * len(self.hypothesis_data_idx)))
+            self.whole_type.append([0] * len(self.premise_data_idx[i]) +
+                                   [1] * len(self.hypothesis_data_idx[i]))
 
     def transfor(self):
         self.premise_data_idx = torch.tensor(self.premise_data_idx)

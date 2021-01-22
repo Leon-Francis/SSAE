@@ -164,3 +164,109 @@ class Baseline_Model_CNN_Classification(nn.Module):
 
         logits = self.fc(outs)
         return logits
+
+
+class Baseline_Model_Bert_Entailment(nn.Module):
+    def __init__(self, dataset_config):
+        super(Baseline_Model_Bert_Entailment, self).__init__()
+        self.bert_model = BertModel.from_pretrained('bert-base-uncased')
+        self.hidden_size = Baseline_BertConfig.hidden_size
+        if not Baseline_BertConfig.fine_tuning:
+            for param in self.bert_model.parameters():
+                param.requires_grad = False
+        self.fc = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(self.hidden_size, dataset_config.labels_num),
+        )
+        for params in self.fc.parameters():
+            init.normal_(params, mean=0, std=0.01)
+
+    def forward(self, inputs, inputs_mask, inputs_type):
+        """forward
+
+        Args:
+            inputs (torch.tensor): [batch, seq_len]
+            inputs_mask (torch.tensor): [batch, seq_len]
+
+        Returns:
+            logits: [batch, 4]
+        """
+        encoder, pooled = self.bert_model(inputs,
+                                          attention_mask=inputs_mask,
+                                          token_type_ids=inputs_type)[:]
+        logits = self.fc(pooled)
+        return logits
+
+
+class Baseline_Model_LSTM_Entailment(nn.Module):
+    def __init__(self, dataset_config, bidirectional):
+        super(Baseline_Model_LSTM_Entailment, self).__init__()
+        self.hidden_size = Baseline_LSTMConfig.hidden_size
+        self.num_layers = Baseline_LSTMConfig.num_layers
+        self.vocab_size = Baseline_LSTMConfig.vocab_size
+        self.bidirectional = bidirectional
+        self.embedding_size = Baseline_LSTMConfig.embedding_size
+
+        self.embedding_layer = nn.Embedding(self.vocab_size,
+                                            self.embedding_size)
+        if Baseline_LSTMConfig.using_pretrained:
+            self.embedding_layer.from_pretrained(
+                torch.from_numpy(
+                    load_bert_vocab_embedding_vec(
+                        self.vocab_size, self.embedding_size,
+                        Baseline_LSTMConfig.vocab_path,
+                        Baseline_LSTMConfig.embedding_path)))
+            self.embedding_layer.weight.requires_grad = False
+
+        self.premise_encoder = nn.LSTM(input_size=self.embedding_size,
+                                       hidden_size=self.hidden_size,
+                                       num_layers=self.num_layers,
+                                       bidirectional=self.bidirectional,
+                                       dropout=Baseline_LSTMConfig.dropout)
+
+        self.hypothesis_encoder = nn.LSTM(input_size=self.embedding_size,
+                                          hidden_size=self.hidden_size,
+                                          num_layers=self.num_layers,
+                                          bidirectional=self.bidirectional,
+                                          dropout=Baseline_LSTMConfig.dropout)
+        self.layers = nn.Sequential()
+
+        layer_sizes = [2 * self.hidden_size, 400, 100]
+        for i in range(len(layer_sizes) - 1):
+            layer = nn.Linear(layer_sizes[i], layer_sizes[i + 1])
+            self.layers.add_module("layer" + str(i + 1), layer)
+
+            bn = nn.BatchNorm1d(layer_sizes[i + 1], eps=1e-05, momentum=0.1)
+            self.layers.add_module("bn" + str(i + 1), bn)
+
+            self.layers.add_module("activation" + str(i + 1), nn.ReLU())
+
+        layer = nn.Linear(layer_sizes[-1], 3)
+        self.layers.add_module("layer" + str(len(layer_sizes)), layer)
+
+        self.layers.add_module("softmax", nn.Softmax(dim=1))
+
+    def store_grad_norm(self, grad):
+        norm = torch.norm(grad, 2, 1)
+        self.grad_norm = norm.detach().data.mean()
+        return grad
+
+    def forward(self, premise_indices, hypothesis_indices):
+        # premise: [batch, sen_len, embedding_size]
+        premise = self.embedding_layer(premise_indices)
+        output_prem, (hidden_prem, _) = self.premise_encoder(premise.permute(1, 0, 2))
+        # hidden_prem: [batch, hidden_size]
+        hidden_prem = hidden_prem[-1]
+        if hidden_prem.requires_grad:
+            hidden_prem.register_hook(self.store_grad_norm)
+
+        hypothesis = self.embedding_layer(hypothesis_indices)
+        output_hypo, (hidden_hypo,
+                      _) = self.hypothesis_encoder(hypothesis.permute(1, 0, 2))
+        hidden_hypo = hidden_hypo[-1]
+        if hidden_hypo.requires_grad:
+            hidden_hypo.register_hook(self.store_grad_norm)
+
+        concatenated = torch.cat([hidden_prem, hidden_hypo], 1)
+        probs = self.layers(concatenated)
+        return probs
