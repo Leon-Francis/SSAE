@@ -13,6 +13,7 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir):
         attack_succeeded_num = 0
         attack_num = 0
         attack_count_num = 0
+        attack_succeeded_idx_num = [0] * AttackConfig.perturb_sample_num
         with open(dir, "a") as f:
             for x, x_mask, y, label in data:
                 x, x_mask, y, label = x.to(
@@ -33,7 +34,7 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir):
                     f.write(' '.join(tokenizer.convert_ids_to_tokens(y[i])) +
                             "\n" * 2)
 
-                    perturb_x, successed_mask, bound_distence, counter, successed = search_fast(
+                    perturb_x, successed_mask, counter, successed = search_fast(
                         Seq2Seq_model,
                         gan_gen,
                         baseline_model,
@@ -43,6 +44,7 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir):
                         right=AttackConfig.perturb_search_bound)
                     attack_count_num += counter
                     attack_num += 1
+
                     if successed:
                         attack_succeeded_num += 1
                         f.write(
@@ -51,6 +53,7 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir):
                         f.write('Attack successed sample: \n')
                         for index in range(len(successed_mask)):
                             if successed_mask[index].item():
+                                attack_succeeded_idx_num[index] += 1
                                 f.write(' '.join(
                                     tokenizer.convert_ids_to_tokens(
                                         perturb_x[index])))
@@ -80,7 +83,12 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir):
                                     perturb_x_sample)))
                             f.write('\n')
             f.write(
-                f'attact success acc:{attack_succeeded_num / attack_num}\n')
+                f'attact success acc:{attack_succeeded_num / attack_num}\n\n')
+
+            for i in range(AttackConfig.perturb_sample_num):
+                f.write(
+                    f'sample {i} attact success acc:{attack_succeeded_idx_num[i] / attack_num}\n\n'
+                )
             f.write(f'avg attack try times:{attack_count_num / attack_num}\n')
 
 
@@ -107,14 +115,15 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
     with torch.no_grad():
         search_bound = right
         counter = 1
-        while counter <= 5:
+        while counter <= AttackConfig.perturb_search_times:
             # search_z: [samples_num, sen_len, super_hidden_size]
             search_z = z.repeat(samples_num, 1, 1)
-            delta = torch.FloatTensor(search_z.size()).uniform_(
-                -1 * search_bound, search_bound).to(AttackConfig.train_device)
-            delta[0] = 0
-            # bound_distence: [samples_num, sen_len, super_hidden_size]
-            bound_distence = torch.abs(delta)
+            delta = torch.FloatTensor(search_z.size())  # 1.122
+            delta[0] = 0.0
+            for i in range(1, samples_num):
+                delta[i].uniform_(-1 * search_bound * (1.122**i),
+                                  search_bound * (1.122**i))
+            delta.to(AttackConfig.train_device)
             search_z += delta
             # pertub_hidden: [samples_num, sen_len, hidden_size]
             perturb_hidden = generator(search_z)
@@ -143,11 +152,9 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
                     break
 
             if successed:
-                return perturb_x, successed_mask, bound_distence.sum(
-                    dim=2), counter, successed
+                return perturb_x, successed_mask, counter, successed
             else:
                 counter += 1
                 search_bound *= 2
 
-    return perturb_x, successed_mask, bound_distence.sum(
-        dim=2), counter, successed
+    return perturb_x, successed_mask, counter, successed
