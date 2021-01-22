@@ -41,8 +41,6 @@ def train_Seq2Seq(train_data, test_data, model, criterion, optimizer, cur_dir):
             best_accuracy = eval_accuracy
             logging('Saveing Seq2Seq models...')
             torch.save(model.state_dict(), cur_dir + r'/Seq2Seq_model.pt')
-        if loss_mean < 0.1:
-            break
 
 
 def evaluate_Seq2Seq(test_data, Seq2Seq_model, path):
@@ -60,7 +58,7 @@ def evaluate_Seq2Seq(test_data, Seq2Seq_model, path):
             outputs_idx = logits.argmax(dim=2)
             acc_sum += (outputs_idx == y).float().sum().item()
             n += y.shape[0] * y.shape[1]
-            with open(path, 'w') as f:
+            with open(path, 'a') as f:
                 for i in range(len(y)):
                     f.write('-------orginal sentence----------\n')
                     f.write(' '.join(tokenizer.convert_ids_to_tokens(y[i])) +
