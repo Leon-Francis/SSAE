@@ -123,7 +123,7 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
             for i in range(1, samples_num):
                 delta[i].uniform_(-1 * search_bound * (1.122**i),
                                   search_bound * (1.122**i))
-            delta.to(AttackConfig.train_device)
+            delta = delta.to(AttackConfig.train_device)
             search_z += delta
             # pertub_hidden: [samples_num, sen_len, hidden_size]
             perturb_hidden = generator(search_z)

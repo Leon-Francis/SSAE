@@ -344,7 +344,7 @@ if __name__ == '__main__':
         evaluate_gan(test_data, Seq2Seq_model, gan_gen, gan_adv,
                      cur_dir_models + f'/epoch{epoch}_evaluate_gan')
 
-        if (epoch + 1) % 1 == 0:
+        if (epoch + 1) % 5 == 0:
             os.makedirs(cur_dir_models + f'/epoch{epoch}')
             save_all_models(Seq2Seq_model, gan_gen, gan_adv,
                             cur_dir_models + f'/epoch{epoch}')
