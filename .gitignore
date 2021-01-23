@@ -1,7 +1,8 @@
+.idea/
+baseline_module/baseline_models/
 __pycache__/
 dataset/
 .vscode/
-nohup.out
 output/
 *.log
 *.out
