@@ -14,18 +14,22 @@ class AttackConfig():
         cuda_idx = multi_cuda_idx[0]
     train_device = torch.device('cuda:' + str(cuda_idx))
     dataset = 'AGNEWS'  # choices = 'IMDB', 'AGNEWS', 'SNLI'
-    baseline_model = 'CNN'  # choices = 'LSTM', 'CNN', 'BidLSTM', 'BERT'
+    baseline_model = 'LSTM'  # choices = 'LSTM', 'TextCNN', 'BidLSTM', 'Bert'
     debug_mode = False
-    epochs = 20
+    epochs = 40
     batch_size = 128
 
-    load_pretrained_Seq2Seq = False
+    load_pretrained_Seq2Seq = True
     head_tail = False
     fine_tuning = False
 
+    if load_pretrained_Seq2Seq:
+        if dataset == 'AGNEWS':
+            pretrained_Seq2Seq_path = r'./output/seq2seq_model/AGNEWS/1611484301/Seq2Seq_model.pt'
+
     if fine_tuning:
-        Seq2Seq_learning_rate = 5e-6
-        warmup = 0.05
+        Seq2Seq_learning_rate_BERT = 5e-6
+        Seq2Seq_learning_rate_LSTM = 1e-4
     else:
         Seq2Seq_learning_rate = 1e-3
     gan_gen_learning_rate = 1e-3
@@ -39,7 +43,7 @@ class AttackConfig():
 
     gan_schedule = [1, 3, 5]
     seq2seq_train_times = 1
-    gan_gen_train_times = 5
+    gan_gen_train_times = 1
     gan_adv_train_times = 1
 
     perturb_sample_num = 20
@@ -51,8 +55,8 @@ class BaselineConfig():
     output_dir = r'./output'
     cuda_idx = 1
     train_device = torch.device('cuda:' + str(cuda_idx))
-    dataset = 'IMDB'  # choices = 'IMDB', 'AGNEWS', 'SNLI'
-    baseline_model = 'BERT'  # choices = 'LSTM', 'CNN', 'BidLSTM', 'BERT'
+    dataset = 'AGNEWS'  # choices = 'IMDB', 'AGNEWS', 'SNLI'
+    baseline_model = 'LSTM'  # choices = 'LSTM', 'TextCNN', 'BidLSTM', 'Bert'
     debug_mode = False
     epochs = 20
     batch_size = 64
@@ -131,11 +135,11 @@ dataset_config_data = {
 baseline_model_config_data = {
     'LSTM': Baseline_LSTMConfig,
     'BidLSTM': Baseline_LSTMConfig,
-    'CNN': Baseline_CNNConfig,
-    'BERT': Baseline_BertConfig
+    'TextCNN': Baseline_CNNConfig,
+    'Bert': Baseline_BertConfig
 }
 
-baseline_model_lists = ['LSTM', 'CNN', 'BidLSTM', 'BERT']
+baseline_model_lists = ['LSTM', 'TextCNN', 'BidLSTM', 'Bert']
 
 dataset_list = [
     'IMDB',
@@ -147,22 +151,22 @@ baseline_model_load_path = {
     'IMDB': {
         'LSTM':
         r'./output/baseline_model/IMDB/LSTM/1611247993/baseline_model.pt',
-        'CNN':
-        r'./output/baseline_model/IMDB/CNN/1611248030/baseline_model.pt',
+        'TextCNN':
+        r'./output/baseline_model/IMDB/TextCNN/1611248030/baseline_model.pt',
         'BidLSTM':
         r'./output/baseline_model/IMDB/BidLSTM/1611248060/baseline_model.pt',
-        'BERT':
-        r'./output/baseline_model/IMDB/BERT/1611248987/baseline_model.pt',
+        'Bert':
+        r'./output/baseline_model/IMDB/Bert/1611248987/baseline_model.pt',
     },
     'AGNEWS': {
         'LSTM':
         r'./output/baseline_model/AGNEWS/LSTM/1611246841/baseline_model.pt',
         'BidLSTM':
         r'./output/baseline_model/AGNEWS/BidLSTM/1611246875/baseline_model.pt',
-        'CNN':
-        r'./output/baseline_model/AGNEWS/CNN/1611246902/baseline_model.pt',
-        'BERT':
-        r'./output/baseline_model/AGNEWS/BERT/1611246760/baseline_model.pt',
+        'TextCNN':
+        r'./output/baseline_model/AGNEWS/TextCNN/1611246902/baseline_model.pt',
+        'Bert':
+        r'./output/baseline_model/AGNEWS/Bert/1611246760/baseline_model.pt',
     },
     'SNLI': {}
 }

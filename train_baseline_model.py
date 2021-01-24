@@ -211,7 +211,7 @@ def eval_baseline_Entailment(model, test_data):
 
 def build_model():
     if BaselineConfig.dataset == 'SNLI':
-        if BaselineConfig.baseline_model == 'BERT':
+        if BaselineConfig.baseline_model == 'Bert':
             baseline_model = Baseline_Model_Bert_Entailment(
                 dataset_config_data['SNLI'])
         elif BaselineConfig.baseline_model == 'LSTM':
@@ -222,7 +222,7 @@ def build_model():
                 dataset_config_data['SNLI'], bidirectional=True)
 
     elif BaselineConfig.dataset == 'AGNEWS':
-        if BaselineConfig.baseline_model == 'BERT':
+        if BaselineConfig.baseline_model == 'Bert':
             baseline_model = Baseline_Model_Bert_Classification(
                 dataset_config_data['AGNEWS'])
         elif BaselineConfig.baseline_model == 'LSTM':
@@ -231,12 +231,12 @@ def build_model():
         elif BaselineConfig.baseline_model == 'BidLSTM':
             baseline_model = Baseline_Model_LSTM_Classification(
                 dataset_config_data['AGNEWS'], bidirectional=True)
-        elif BaselineConfig.baseline_model == 'CNN':
+        elif BaselineConfig.baseline_model == 'TextCNN':
             baseline_model = Baseline_Model_CNN_Classification(
                 dataset_config_data['AGNEWS'])
 
     elif BaselineConfig.dataset == 'IMDB':
-        if BaselineConfig.baseline_model == 'BERT':
+        if BaselineConfig.baseline_model == 'Bert':
             baseline_model = Baseline_Model_Bert_Classification(
                 dataset_config_data['IMDB'])
         elif BaselineConfig.baseline_model == 'LSTM':
@@ -245,7 +245,7 @@ def build_model():
         elif BaselineConfig.baseline_model == 'BidLSTM':
             baseline_model = Baseline_Model_LSTM_Classification(
                 dataset_config_data['IMDB'], bidirectional=True)
-        elif BaselineConfig.baseline_model == 'CNN':
+        elif BaselineConfig.baseline_model == 'TextCNN':
             baseline_model = Baseline_Model_CNN_Classification(
                 dataset_config_data['IMDB'])
     return baseline_model
@@ -285,7 +285,7 @@ def save_config(path):
 def train_and_evaluate(model, train_data, test_data, criterion_baseline_model,
                        optimizer_baseline_model, cur_dir):
     if BaselineConfig.dataset == 'SNLI':
-        if BaselineConfig.baseline_model == 'BERT':
+        if BaselineConfig.baseline_model == 'Bert':
             train_bert_baseline_Entailment(model, train_data, test_data,
                                            criterion_baseline_model,
                                            optimizer_baseline_model, cur_dir)
@@ -295,7 +295,7 @@ def train_and_evaluate(model, train_data, test_data, criterion_baseline_model,
                                       optimizer_baseline_model, cur_dir)
 
     else:
-        if BaselineConfig.baseline_model == 'BERT':
+        if BaselineConfig.baseline_model == 'Bert':
             train_bert_baseline_Classification(model, train_data, test_data,
                                                criterion_baseline_model,
                                                optimizer_baseline_model,
