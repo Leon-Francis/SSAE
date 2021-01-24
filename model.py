@@ -8,6 +8,7 @@ from torch import optim
 
 class Seq2Seq_bert(nn.Module):
     def __init__(self,
+                 vocab_size,
                  hidden_size=AttackConfig.hidden_size,
                  num_layers=AttackConfig.num_layers,
                  dropout=AttackConfig.dropout,
@@ -31,7 +32,7 @@ class Seq2Seq_bert(nn.Module):
                                dropout=self.dropout)
         self.fc = nn.Sequential(
             nn.Dropout(0.5),
-            nn.Linear(self.hidden_size, AttackConfig.vocab_size))
+            nn.Linear(self.hidden_size, vocab_size))
 
     def encode(self, inputs, inputs_mask, is_noise=False):
         """bert_based_encode

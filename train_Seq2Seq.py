@@ -9,11 +9,12 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 import torch
 from transformers import BertTokenizer
-from pytorch_pretrained_bert import BertAdam
 from shutil import copyfile
+from baseline_module.baseline_model_builder import BaselineModelBuilder
 
 
-def train_Seq2Seq(train_data, test_data, model, criterion, optimizer, cur_dir):
+def train_Seq2Seq(train_data, test_data, model, criterion, optimizer, cur_dir,
+                  attack_vocab):
     best_accuracy = 0.0
     for epoch in range(AttackConfig.epochs):
         logging(f'epoch {epoch} start')
@@ -35,7 +36,8 @@ def train_Seq2Seq(train_data, test_data, model, criterion, optimizer, cur_dir):
             n += (x.shape[0] * x.shape[1])
         logging(f"epoch {epoch} train_loss is {loss_mean / n}")
         eval_accuracy = evaluate_Seq2Seq(
-            test_data, model, cur_dir + f'/eval_Seq2Seq_model_epoch_{epoch}')
+            test_data, model, cur_dir + f'/eval_Seq2Seq_model_epoch_{epoch}',
+            attack_vocab)
         logging(f"epoch {epoch} test_acc is {eval_accuracy}")
         if best_accuracy < eval_accuracy:
             best_accuracy = eval_accuracy
@@ -43,7 +45,7 @@ def train_Seq2Seq(train_data, test_data, model, criterion, optimizer, cur_dir):
             torch.save(model.state_dict(), cur_dir + r'/Seq2Seq_model.pt')
 
 
-def evaluate_Seq2Seq(test_data, Seq2Seq_model, path):
+def evaluate_Seq2Seq(test_data, Seq2Seq_model, path, attack_vocab):
     Seq2Seq_model.eval()
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
     logging(f'Saving evaluate of Seq2Seq_model outputs into {path}')
@@ -58,35 +60,60 @@ def evaluate_Seq2Seq(test_data, Seq2Seq_model, path):
             outputs_idx = logits.argmax(dim=2)
             acc_sum += (outputs_idx == y).float().sum().item()
             n += y.shape[0] * y.shape[1]
-            with open(path, 'a') as f:
-                for i in range(len(y)):
-                    f.write('-------orginal sentence----------\n')
-                    f.write(' '.join(tokenizer.convert_ids_to_tokens(y[i])) +
+            if attack_vocab:
+                with open(path, 'a') as f:
+                    for i in range(len(y)):
+                        f.write('-------orginal sentence----------\n')
+                        f.write(' '.join(
+                            [attack_vocab.get_word(token)
+                             for token in y[i]]) + '\n')
+                        f.write(
+                            '-------sentence -> encoder -> decoder----------\n'
+                        )
+                        f.write(' '.join([
+                            attack_vocab.get_word(token)
+                            for token in outputs_idx[i]
+                        ]) + '\n' * 2)
+            else:
+                with open(path, 'a') as f:
+                    for i in range(len(y)):
+                        f.write('-------orginal sentence----------\n')
+                        f.write(
+                            ' '.join(tokenizer.convert_ids_to_tokens(y[i])) +
                             '\n')
-                    f.write(
-                        '-------sentence -> encoder -> decoder----------\n')
-                    f.write(' '.join(
-                        tokenizer.convert_ids_to_tokens(outputs_idx[i])) +
-                            '\n' * 2)
+                        f.write(
+                            '-------sentence -> encoder -> decoder----------\n'
+                        )
+                        f.write(' '.join(
+                            tokenizer.convert_ids_to_tokens(outputs_idx[i])) +
+                                '\n' * 2)
 
         return acc_sum / n
 
 
-def build_dataset():
+def build_dataset(attack_vocab):
     if AttackConfig.dataset == 'SNLI':
         train_dataset_orig = SNLI_Dataset(train_data=True,
+                                          attack_vocab=attack_vocab,
                                           debug_mode=AttackConfig.debug_mode)
         test_dataset_orig = SNLI_Dataset(train_data=False,
+                                         attack_vocab=attack_vocab,
                                          debug_mode=AttackConfig.debug_mode)
     elif AttackConfig.dataset == 'AGNEWS':
-        train_dataset_orig = AGNEWS_Dataset(train_data=True,
-                                            debug_mode=AttackConfig.debug_mode)
+        train_dataset_orig = AGNEWS_Dataset(
+            train_data=True,
+            attack_vocab=attack_vocab,
+            debug_mode=AttackConfig.debug_mode,
+        )
         test_dataset_orig = AGNEWS_Dataset(train_data=False,
+                                           attack_vocab=attack_vocab,
                                            debug_mode=AttackConfig.debug_mode)
     elif AttackConfig.dataset == 'IMDB':
         train_dataset_orig = IMDB_Dataset(train_data=True,
+                                          attack_vocab=attack_vocab,
                                           debug_mode=AttackConfig.debug_mode)
         test_dataset_orig = IMDB_Dataset(train_data=False,
+                                         attack_vocab=attack_vocab,
                                          debug_mode=AttackConfig.debug_mode)
     train_data = DataLoader(train_dataset_orig,
                             batch_size=AttackConfig.batch_size,
@@ -116,9 +143,16 @@ if __name__ == '__main__':
     logging('Saving into directory' + cur_dir)
     save_config(cur_dir)
 
-    train_data, test_data = build_dataset()
+    baseline_model_builder = BaselineModelBuilder(AttackConfig.dataset,
+                                                  'LSTM',
+                                                  AttackConfig.train_device,
+                                                  is_load=True)
 
-    model = Seq2Seq_bert().to(AttackConfig.train_device)
+    train_data, test_data = build_dataset(
+        attack_vocab=baseline_model_builder.vocab)
+
+    model = Seq2Seq_bert(baseline_model_builder.vocab.num).to(
+        AttackConfig.train_device)
     if AttackConfig.train_multi_cuda:
         model = nn.DataParallel(model, device_ids=AttackConfig.multi_cuda_idx)
 
@@ -126,13 +160,19 @@ if __name__ == '__main__':
     criterion_Seq2Seq_model = nn.CrossEntropyLoss().to(
         AttackConfig.train_device)
     if AttackConfig.fine_tuning:
-        optimizer_Seq2Seq_model = BertAdam(
-            model.parameters(),
-            lr=AttackConfig.Seq2Seq_learning_rate,
-            warmup=AttackConfig.warmup,
-            t_total=len(train_data) * AttackConfig.epochs)
+        optimizer_Seq2Seq_model = optim.AdamW(
+            [{
+                'params': model.encoder.parameters(),
+                'lr': AttackConfig.Seq2Seq_learning_rate_BERT
+            }, {
+                'params': model.decoder.parameters()
+            }, {
+                'params': model.fc.parameters()
+            }],
+            lr=AttackConfig.Seq2Seq_learning_rate_LSTM)
     else:
         optimizer_Seq2Seq_model = optim.AdamW(
             model.parameters(), lr=AttackConfig.Seq2Seq_learning_rate)
     train_Seq2Seq(train_data, test_data, model, criterion_Seq2Seq_model,
-                  optimizer_Seq2Seq_model, cur_dir)
+                  optimizer_Seq2Seq_model, cur_dir,
+                  baseline_model_builder.vocab)

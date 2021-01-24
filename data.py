@@ -4,6 +4,7 @@ from tools import logging
 import torch
 from config import AGNEWSConfig, SNLIConfig, IMDBConfig
 from transformers import BertTokenizer
+from baseline_module.baseline_data import baseline_Tokenizer
 
 
 class AGNEWS_Dataset(Dataset):
@@ -13,15 +14,18 @@ class AGNEWS_Dataset(Dataset):
     label_idx = seq + 1,
     classification_label
     """
-    def __init__(self, train_data=True, debug_mode=False):
+    def __init__(self, train_data=True, attack_vocab=None, debug_mode=False):
         super(AGNEWS_Dataset, self).__init__()
         if train_data:
             self.path = AGNEWSConfig.train_data_path
         else:
             self.path = AGNEWSConfig.test_data_path
+        self.attack_vocab = attack_vocab
         self.datas, self.classification_label = self.read_standard_data(
             self.path, debug_mode)
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        if attack_vocab:
+            self.baseline_tokenizer = baseline_Tokenizer()
         self.sen_len = AGNEWSConfig.sen_len
         self.data_tokens = []
         self.label_tokens = []
@@ -60,8 +64,12 @@ class AGNEWS_Dataset(Dataset):
         for sen in self.datas:
             data_tokens = ['[CLS]']
             data_tokens += self.tokenizer.tokenize(sen)[:self.sen_len - 1]
-            label_tokens = self.tokenizer.tokenize(sen)[:self.sen_len - 1]
-            label_tokens += ['[SEP]']
+            if self.attack_vocab:
+                label_tokens = self.baseline_tokenizer(sen)[:self.sen_len - 1]
+                label_tokens += ['[SEP]']
+            else:
+                label_tokens = self.tokenizer.tokenize(sen)[:self.sen_len - 1]
+                label_tokens += ['[SEP]']
             self.data_tokens.append(data_tokens)
             self.label_tokens.append(label_tokens)
 
@@ -71,17 +79,25 @@ class AGNEWS_Dataset(Dataset):
             self.data_idx.append(self.tokenizer.convert_tokens_to_ids(tokens))
             self.data_mask.append([1] * len(tokens))
 
-        for tokens in self.label_tokens:
-            self.label_idx.append(self.tokenizer.convert_tokens_to_ids(tokens))
+        if self.attack_vocab:
+            for tokens in self.label_tokens:
+                self.label_idx.append(
+                    [self.attack_vocab.get_index(token) for token in tokens])
+        else:
+            for tokens in self.label_tokens:
+                self.label_idx.append(
+                    self.tokenizer.convert_tokens_to_ids(tokens))
 
         for i in range(len(self.data_idx)):
             if len(self.data_idx[i]) < self.sen_len:
                 self.data_idx[i] += [0
                                      ] * (self.sen_len - len(self.data_idx[i]))
-                self.label_idx[i] += [0] * (self.sen_len -
-                                            len(self.label_idx[i]))
                 self.data_mask[i] += [0] * (self.sen_len -
                                             len(self.data_mask[i]))
+
+            if len(self.label_idx[i]) < self.sen_len:
+                self.label_idx[i] += [0] * (self.sen_len -
+                                            len(self.label_idx[i]))
 
     def transfor(self):
         self.data_idx = torch.tensor(self.data_idx)
@@ -104,7 +120,7 @@ class IMDB_Dataset(Dataset):
     label_idx = seq + 1,
     classification_label
     """
-    def __init__(self, train_data=True, debug_mode=False):
+    def __init__(self, train_data=True, attack_vocab=None, debug_mode=False):
         super(IMDB_Dataset, self).__init__()
         if train_data:
             self.path = IMDBConfig.train_data_path
@@ -209,7 +225,7 @@ class SNLI_Dataset(Dataset):
     whole_type = 0(premise_sen) + 1(hypothesis_sen)
     classification_label
     """
-    def __init__(self, train_data=True, debug_mode=False):
+    def __init__(self, train_data=True, attack_vocab=None, debug_mode=False):
         super(SNLI_Dataset, self).__init__()
         if train_data:
             self.path = SNLIConfig.train_data_path
