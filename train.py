@@ -32,10 +32,11 @@ def train_Seq2Seq(train_data, model, criterion, optimizer, total_loss):
 
 
 def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
-                optimizer_gan_a, criterion_ce):
+                optimizer_gan_g, optimizer_gan_a, criterion_ce):
     gan_gen.train()
     gan_adv.train()
     baseline_model.train()
+    optimizer_gan_g.zero_grad()
     optimizer_gan_a.zero_grad()
 
     x, x_mask, y, label = train_data
@@ -350,7 +351,8 @@ if __name__ == '__main__':
                 for i in range(AttackConfig.gan_adv_train_times):
                     total_loss_gan_a += train_gan_a(
                         (x, x_mask, y, label), Seq2Seq_model, gan_gen, gan_adv,
-                        baseline_model, optimizer_gan_a, criterion_ce)
+                        baseline_model, optimizer_gan_g, optimizer_gan_a,
+                        criterion_ce)
 
             if niter % 100 == 0:
                 # decaying noise
@@ -379,6 +381,12 @@ if __name__ == '__main__':
                             cur_dir_models + f'/epoch{epoch}')
 
             logging(f'epoch {epoch} Staring perturb')
-            perturb(test_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
-                    cur_dir + f'/epoch{epoch}_perturb',
-                    baseline_model_builder.vocab)
+            attack_acc, attack_num_acc, attack_avg_times = perturb(
+                test_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
+                cur_dir + f'/epoch{epoch}_perturb',
+                baseline_model_builder.vocab)
+            log = ''
+            log += f'attact success acc: {attack_acc}\n\n'
+            for i in range(AttackConfig.perturb_sample_num):
+                log += f'sample {i} attact success acc:{attack_num_acc[i]}\n'
+            logging(log + f'\navg attack try times:{attack_avg_times}')

@@ -1,1 +1,1 @@
-nohup python train.py > update_adv_while_training_gen.log 2>&1 &
+nohup python train.py > train_results_3.log 2>&1 &

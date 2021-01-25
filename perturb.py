@@ -151,6 +151,7 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir,
                     f'sample {i} attact success acc:{attack_succeeded_idx_num[i] / attack_num}\n\n'
                 )
             f.write(f'avg attack try times:{attack_count_num / attack_num}\n')
+    return attack_succeeded_num / attack_num, attack_succeeded_idx_num / attack_num, attack_count_num / attack_num
 
 
 def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
@@ -175,15 +176,15 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
     baseline_model.eval()
     with torch.no_grad():
         search_bound = right
-        counter = 1
-        while counter <= AttackConfig.perturb_search_times:
+        counter = 0
+        while counter < AttackConfig.perturb_search_times:
             # search_z: [samples_num, sen_len, super_hidden_size]
             search_z = z.repeat(samples_num, 1, 1)
             delta = torch.FloatTensor(search_z.size())  # 1.122
             delta[0] = 0.0
             for i in range(1, samples_num):
-                delta[i].uniform_(-1 * search_bound * (1.122**i),
-                                  search_bound * (1.122**i))
+                delta[i].uniform_(-1 * search_bound * (1.3**i),
+                                  search_bound * (1.3**i))
             delta = delta.to(AttackConfig.train_device)
             search_z += delta
             # pertub_hidden: [samples_num, sen_len, hidden_size]
@@ -213,6 +214,7 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
                     break
 
             if successed:
+                counter += 1
                 return perturb_x, successed_mask, counter, successed
             else:
                 counter += 1
