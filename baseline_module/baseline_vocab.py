@@ -5,7 +5,7 @@ from baseline_tools import logging
 
 class baseline_Vocab():
 
-    def __init__(self, origin_data_tokens, word_dim:int=100, vocab_limit_size=80000,
+    def __init__(self, origin_data_tokens, word_dim:int=100, vocab_limit_size=80000, is_special=False,
                  is_using_pretrained=True, word_vec_file_path=r'./static/glove.6B.100d.txt'):
         self.file_path = word_vec_file_path
         self.word_dim = word_dim
@@ -15,6 +15,7 @@ class baseline_Vocab():
         self.num = 0
         self.data_tokens = []
         self.words_vocab = []
+        self.is_special = is_special # enable <cls> and <sep>
         assert len(origin_data_tokens) > 0
         self.data_tokens = origin_data_tokens
         self.__build_words_index()
@@ -41,6 +42,9 @@ class baseline_Vocab():
         self.word_count = sorted(self.word_count.items(), key=lambda x: x[1], reverse=True)
         count = 1
         self.words_vocab.append('<unk>')
+        if self.is_special:
+            self.words_vocab += ['<cls>', '<sep>']
+            count += 2
         temp = {}
         for x, y in self.word_count:
             if count > limit:
@@ -50,6 +54,9 @@ class baseline_Vocab():
             count += 1
         self.word_dict = temp
         self.word_dict['<unk>'] = 0
+        if self.is_special:
+            self.word_dict['<cls>'] = 1
+            self.word_dict['<sep>'] = 2
         self.num = count
         assert self.num == len(self.word_dict) == len(self.words_vocab)
         self.vectors = np.ndarray([self.num, self.word_dim], dtype='float32')
@@ -57,24 +64,31 @@ class baseline_Vocab():
     def __read_pretrained_word_vecs(self):
         num = 0
         word_dict = {}
-        word_dict['<unk>'] = self.num  # unknown word
+        word_dict['<unk>'] = num  # unknown word
+        if self.is_special:
+            word_dict['<cls>'] = 1
+            word_dict['<sep>'] = 2
+            num += 2
         with open(self.file_path, 'r', encoding='utf-8') as file:
             file = file.readlines()
-            vectors = np.ndarray([len(file) + 1, self.word_dim], dtype='float32')
-            vectors[0] = np.random.normal(0.0, 0.3, [self.word_dim]) #unk
+            vectors = np.ndarray([len(file) + 1 + num, self.word_dim], dtype='float32')
+            vectors[0] = np.random.normal(0.0, 0.3, [self.word_dim])  # unk
+            if self.is_special:
+                vectors[1] = np.random.normal(0.0, 0.3, [self.word_dim])
+                vectors[2] = np.random.normal(0.0, 0.3, [self.word_dim])
             for line in file:
                 line = line.split()
                 num += 1
-                word_dict[line[0]] = self.num
-                vectors[self.num] = np.asarray(line[-self.word_dim:], dtype='float32')
+                word_dict[line[0]] = num
+                vectors[num] = np.asarray(line[-self.word_dim:], dtype='float32')
 
 
         for word, idx in self.word_dict.items():
-            if idx == 0: continue
             if word in word_dict:
                 key = word_dict[word]
                 self.vectors[idx] = vectors[key]
-            else: self.vectors[idx] = vectors[0]
+            else:
+                self.vectors[idx] = vectors[0]
 
 
 
@@ -82,6 +96,7 @@ class baseline_Vocab():
         return self.num
 
     def get_index(self, word: str):
+        word = word.lower()
         if self.word_dict.get(word) is None:
             return 0  # unknown word
         return self.word_dict[word]

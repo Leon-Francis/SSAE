@@ -3,8 +3,8 @@ import os
 import pickle
 from datetime import datetime
 
-if os.path.exists('./baseline_module'):
-    os.chdir('./baseline_module')
+# if os.path.exists('./baseline_module'):
+#     os.chdir('./baseline_module')
 
 # print(os.getcwd())
 
@@ -76,5 +76,27 @@ def read_AGNEWS_origin_data(data_path):
             datas.append(line[1] + '. ' + line[2])
     return datas, labels
 
+def read_SNLI_origin_data(sentence_path, data_path):
+    label_classes = {'neutral': 0, 'contradiction': 1, 'entailment': 2}
+    sentences = []
+    with open(sentence_path, 'r') as file:
+        for line in file:
+            sentences.append(line[1:].strip())
+
+    premise = []
+    hypothesis = []
+    labels =  []
+    with open(data_path, 'r') as file:
+        for i, line in enumerate(file):
+            temp = line.strip().split()
+            labels.append(label_classes[temp[0]])
+            premise.append(sentences[int(temp[1])])
+            hypothesis.append(sentences[int(temp[2])])
+
+    return premise, hypothesis, labels
+
 if __name__ == '__main__':
-    pass
+    sentence_path = '/home/jsjlab/projects/AttackViaGan/dataset/SNLI/sentences.txt'
+    data_path = '/home/jsjlab/projects/AttackViaGan/dataset/SNLI/test.txt'
+
+    read_SNLI_origin_data(sentence_path, data_path)

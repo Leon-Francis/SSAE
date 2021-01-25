@@ -2,6 +2,10 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from transformers import BertModel
+import os
+import sys
+current_dir = os.path.abspath(os.path.dirname(__file__))
+sys.path.append(current_dir)
 from baseline_config import baseline_BertConfig
 
 class baseline_LSTM(nn.Module):

@@ -7,7 +7,7 @@ from tqdm import tqdm
 from transformers import BertTokenizer
 
 from baseline_config import baseline_config_dataset, baseline_BertConfig
-from baseline_tools import logging, read_standard_data
+from baseline_tools import logging, read_standard_data, read_SNLI_origin_data
 
 
 class baseline_Tokenizer():
@@ -32,16 +32,29 @@ class baseline_Tokenizer():
         return words
 
 
-
-
 class baseline_MyDataset(Dataset):
     def __init__(self, dataset_name, data_path, using_bert=False, is_to_tokens=True):
         self.dataset_name = dataset_name
         self.dataset_path = data_path
         self.labels_num = baseline_config_dataset[dataset_name].labels_num
-        self.data, self.labels = read_standard_data(data_path)
-        self.data_token = []
-        self.data_seq = []
+        if dataset_name == 'SNLI':
+            self.premise_data, self.hypothesis_data, self.labels = read_SNLI_origin_data(
+                baseline_config_dataset[dataset_name].sentences_path, data_path
+            )
+            self.data_token = {
+                'pre': [],
+                'hypo': [],
+                'comb': [], # bert will use the combined one
+            }
+            self.data_tensor = {
+                'pre': [],
+                'hypo': [],
+                'comb': [],
+            }
+        else:
+            self.data, self.labels = read_standard_data(data_path)
+            self.data_token = []
+            self.data_tensor = []
         self.labels_tensor = []
         self.vocab = None
         self.using_bert = using_bert
@@ -58,10 +71,17 @@ class baseline_MyDataset(Dataset):
 
 
     def data2token(self):
-        assert self.data is not None
         logging(f'{self.dataset_name} {self.dataset_path} is tokenizing')
         if self.using_bert:
             pass
+        elif self.dataset_name == 'SNLI':
+            with tqdm(total=len(self.premise_data)+len(self.hypothesis_data)) as pbar:
+                for sen in self.premise_data:
+                    self.data_token['pre'].append(self.tokenizer(sen))
+                    pbar.update(1)
+                for sen in self.hypothesis_data:
+                    self.data_token['hypo'].append(self.tokenizer(sen))
+                    pbar.update(1)
         else:
             for sen in tqdm(self.data):
                 self.data_token.append(self.tokenizer(sen))
@@ -69,23 +89,34 @@ class baseline_MyDataset(Dataset):
     def token2seq(self, vocab:'Vocab', maxlen:int):
         logging(f'{self.dataset_name} {self.dataset_path} is seq maxlen {maxlen}')
         if not self.using_bert:
-            if len(self.data_seq) > 0:
-                self.data_seq.clear()
-                self.labels_tensor.clear()
             self.vocab = vocab
             self.maxlen = maxlen
-            assert self.data_token is not None
-            for tokens in self.data_token:
-                self.data_seq.append(self.__encode_tokens(tokens))
+            if self.dataset_name == 'SNLI':
+                assert len(self.data_token['pre']) == len(self.data_token['hypo']) == len(self.labels)
+                for tokens in self.data_token['pre']:
+                    self.data_tensor['pre'].append(self.__encode_tokens(tokens))
+                for tokens in self.data_token['hypo']:
+                    self.data_tensor['hypo'].append(self.__encode_tokens(tokens))
+            else:
+                for tokens in self.data_token:
+                    self.data_tensor.append(self.__encode_tokens(tokens))
         else:
-            for sen in tqdm(self.data):
-                t = self.tokenizer(sen, max_length=maxlen, truncation=True, padding=True)
-                self.data_token.append(torch.tensor(t['input_ids'], dtype=torch.long))
-                self.data_types.append(torch.tensor(t['token_type_ids'], dtype=torch.long))
-                self.data_masks.append(torch.tensor(t['attention_mask'], dtype=torch.long))
-                assert self.data_token[-1].size()[0] == self.data_types[-1].size()[0] == self.data_masks[-1].size()[0]
-                print(self.data_token[-1].size(), len(self.data_token))
-            self.data_seq = self.data_token
+            if self.dataset_name == 'SNLI':
+                assert len(self.data_token['pre']) == len(self.data_token['hypo']) == len(self.labels)
+                for i in tqdm(range(len(self.data_token['pre']))):
+                    t = self.tokenizer(text=self.premise_data[i], text_pair=self.hypothesis_data[i],
+                                       max_length=maxlen*2, truncation=True, padding='max_length')
+                    self.data_token.append(torch.tensor(t['input_ids'], dtype=torch.long))
+                    self.data_types.append(torch.tensor(t['token_type_ids'], dtype=torch.long))
+                    self.data_masks.append(torch.tensor(t['attention_mask'], dtype=torch.long))
+            else:
+                for sen in tqdm(self.data):
+                    t = self.tokenizer(sen, max_length=maxlen, truncation=True, padding='max_length')
+                    self.data_token['comb'].append(torch.tensor(t['input_ids'], dtype=torch.long))
+                    self.data_types.append(torch.tensor(t['token_type_ids'], dtype=torch.long))
+                    self.data_masks.append(torch.tensor(t['attention_mask'], dtype=torch.long))
+                self.data_tensor['comb'] = self.data_token
+
         for label in self.labels:
             self.labels_tensor.append(torch.tensor(label))
 
@@ -102,46 +133,28 @@ class baseline_MyDataset(Dataset):
             x[idx] = self.vocab.get_index(word)
         return torch.tensor(x)
 
-    def split_data_by_label(self):
-        datas = [[] for _ in range(self.labels_num)]
-        for idx, lab in enumerate(self.labels):
-            temp = (self.data[idx], lab)
-            datas[lab].append(temp)
-        return datas
-
-    def sample_by_labels(self, single_label_num:int):
-        datas = self.split_data_by_label()
-        sample_data = []
-        sample_label = [-1 for _ in range(single_label_num*self.labels_num)]
-        for i in range(self.labels_num):
-            sample_data += random.sample(datas[i], single_label_num)
-        for idx, data in enumerate(sample_data):
-            sample_data[idx] = data[0]
-            sample_label[idx] = data[1]
-        assert len(sample_data) == len(sample_label)
-        return sample_data, sample_label
-
-
-    def statistic(self):
-        import numpy as np
-        length = [len(x) for x in self.data_token]
-        logging(f'statistic {self.dataset_name}'
-              f'maxlen {max(length)}, minlen {min(length)}, '
-              f'meanlen {sum(length) / len(length)}, medianlen {np.median(length)}')
 
     def __len__(self):
         return len(self.labels_tensor)
 
     def __getitem__(self, item):
         if self.using_bert:
-            return (self.data_seq[item], self.data_types[item], self.data_masks[item],
+            if self.dataset_name == 'SNLI':
+                return (self.data_tensor['comb'][item], self.data_types[item], self.data_masks[item],
+                        self.labels_tensor[item])
+            return (self.data_tensor[item], self.data_types[item], self.data_masks[item],
                     self.labels_tensor[item])
-        return (self.data_seq[item], self.labels_tensor[item])
+        if self.dataset_name == 'SNLI':
+            return (self.data_tensor['pre'][item], self.data_tensor['hypo'][item], self.labels_tensor[item])
+        return (self.data_tensor[item], self.labels_tensor[item])
 
 
 if __name__ == '__main__':
     pass
-    tokenizer = BertTokenizer.from_pretrained(baseline_BertConfig.model_name)
-    text ='hello, i love u.. you and me'
+    # tokenizer = BertTokenizer.from_pretrained(baseline_BertConfig.model_name)
+    # text1 = 'A boy is jumping on skateboard in the middle of a red bridge .'
+    # text2 = 'An older man sits with his orange juice at a small table in a coffee shop while employee'
+    # res = tokenizer(text=text1, text_pair=text2, max_length=10*2, truncation=True, padding='max_length')
+    # res = tokenizer.convert_ids_to_tokens(res['input_ids'])
+    # print(res)
 
-    print(tokenizer(text, max_length=1))

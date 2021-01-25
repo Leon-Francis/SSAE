@@ -1,11 +1,13 @@
 nohup \
 python -u baseline_train.py \
---dataset IMDB \
---model Bert \
---epoch 10 \
+--dataset SNLI \
+--model LSTM_E \
+--epoch 120 \
 --batch 512 \
---lr 7e-4 \
+--lr 1e-3 \
 --load_model no \
---cuda 3 \
---save_acc_limit 0.85 \
->log.log 2>&1 &
+--cuda 1 \
+--save_acc_limit 0.80 \
+--only_evaluate no \
+--skip_loss 0.05 \
+>log_snli_train_lstm.log 2>&1 &

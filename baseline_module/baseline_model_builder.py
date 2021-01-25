@@ -1,10 +1,15 @@
 import torch
+import os
+import sys
+current_dir = os.path.abspath(os.path.dirname(__file__))
+sys.path.append(current_dir)
 
 from baseline_config import baseline_config_dataset, baseline_LSTMConfig, baseline_TextCNNConfig, \
-    baseline_BertConfig
+    baseline_BertConfig, baseline_config_models_list
 from baseline_config import baseline_config_model_load_path
 from baseline_data import baseline_MyDataset
-from baseline_nets import baseline_LSTM, baseline_TextCNN, baseline_Bert
+from baseline_nets import baseline_LSTM, baseline_TextCNN, baseline_Bert, \
+    baseline_LSTM_Entailment, baseline_TextCNN_Entailment
 from baseline_tools import logging
 from baseline_vocab import baseline_Vocab
 
@@ -12,7 +17,7 @@ from baseline_vocab import baseline_Vocab
 class BaselineModelBuilder():
     def __init__(self, dataset_name, model_name, device:torch.device, is_load=True, vocab=None):
         assert dataset_name in {'AGNEWS', 'IMDB', 'SNLI'}
-        assert model_name in {'LSTM', 'BidLSTM', 'TextCNN', 'Bert'}
+        assert model_name in baseline_config_models_list
 
         self.dataset_name = dataset_name
         self.model_name = model_name
@@ -20,19 +25,20 @@ class BaselineModelBuilder():
         self.device = device
         self.net = None
         self.mode_is_training = False
-        if model_name != 'Bert':
+        if 'Bert' not in model_name:
             self.vocab = vocab if vocab else self.__build_vocab()
         else:
             self.vocab = None
 
-        if model_name == 'LSTM':
-            self.net = self.__build_LSTM(is_bid=False, is_load=is_load)
-        elif model_name == 'BidLSTM':
-            self.net = self.__build_LSTM(is_bid=True, is_load=is_load)
-        elif model_name == 'TextCNN':
-            self.net = self.__build_TextCNN(is_load=is_load)
-        elif model_name == 'Bert':
-            self.net = self.__build_Bert(is_load=is_load)
+        is_entailment = dataset_name == 'SNLI'
+        if 'LSTM' in model_name:
+            self.net = self.__build_LSTM(is_bid=False, is_load=is_load, is_entailment=is_entailment)
+        elif 'BidLSTM' in model_name:
+            self.net = self.__build_LSTM(is_bid=True, is_load=is_load, is_entailment=is_entailment)
+        elif 'TextCNN' in model_name:
+            self.net = self.__build_TextCNN(is_load=is_load, is_entailment=is_entailment)
+        elif 'Bert' in model_name:
+            self.net = self.__build_Bert(is_load=is_load, is_entailment=is_entailment)
 
         self.net.to(device)
         self.net.eval()
@@ -96,18 +102,32 @@ class BaselineModelBuilder():
         logging(f'{self.dataset_name} {self.model_name} is building vocab')
         train_data_path = self.dataset_config.train_data_path
         train_dataset = baseline_MyDataset(self.dataset_name, train_data_path, is_to_tokens=True)
-        return baseline_Vocab(train_dataset.data_token, is_using_pretrained=True,
+
+        if self.dataset_name == 'SNLI':
+            return baseline_Vocab(train_dataset.data_token['pre']+train_dataset.data_token['hypo'],
+                                  is_using_pretrained=True, is_special=True,
+                                  vocab_limit_size=self.dataset_config.vocab_limit_size,
+                                  word_vec_file_path=self.dataset_config.pretrained_word_vectors_path)
+        return baseline_Vocab(train_dataset.data_token, is_using_pretrained=True, is_special=False,
                                     vocab_limit_size=self.dataset_config.vocab_limit_size,
                                     word_vec_file_path=self.dataset_config.pretrained_word_vectors_path)
 
-    def __build_LSTM(self, is_bid, is_load):
+    def __build_LSTM(self, is_bid, is_load, is_entailment):
         num_hiddens = baseline_LSTMConfig.num_hiddens[self.dataset_name]
         num_layers = baseline_LSTMConfig.num_layers[self.dataset_name]
         is_using_pretrained = baseline_LSTMConfig.is_using_pretrained[self.dataset_name]
         word_dim = baseline_LSTMConfig.word_dim[self.dataset_name]
-        net = baseline_LSTM(num_hiddens=num_hiddens, num_layers=num_layers, word_dim=word_dim, bid=is_bid,
-                            head_tail=True, vocab=self.vocab, labels_num=self.dataset_config.labels_num,
-                            using_pretrained=is_using_pretrained)
+        is_head_and_tail = baseline_LSTMConfig.is_head_and_tail[self.dataset_name]
+        if is_entailment:
+            net = baseline_LSTM_Entailment(num_hiddens=num_hiddens, num_layers=num_layers,
+                                           word_dim=word_dim, bid=is_bid,
+                                           head_tail=is_head_and_tail, vocab=self.vocab,
+                                           labels_num=self.dataset_config.labels_num,
+                                           using_pretrained=is_using_pretrained)
+        else:
+            net = baseline_LSTM(num_hiddens=num_hiddens, num_layers=num_layers, word_dim=word_dim, bid=is_bid,
+                                head_tail=is_head_and_tail, vocab=self.vocab, labels_num=self.dataset_config.labels_num,
+                                using_pretrained=is_using_pretrained)
         if is_load:
             model_path = baseline_config_model_load_path[self.dataset_name][self.model_name]
             net.load_state_dict(torch.load(model_path, map_location=self.device))
@@ -115,27 +135,34 @@ class BaselineModelBuilder():
         return net
 
 
-    def __build_TextCNN(self, is_load):
+    def __build_TextCNN(self, is_load, is_entailment):
         channel_size, kernel_size = baseline_TextCNNConfig.channel_kernel_size[self.dataset_name]
         is_static = baseline_TextCNNConfig.is_static[self.dataset_name]
         train_embedding_dim = baseline_TextCNNConfig.train_embedding_dim[self.dataset_name]
+        is_batch_normal = baseline_TextCNNConfig.is_batch_normal[self.dataset_name]
+        using_pretrained = baseline_TextCNNConfig.using_pretrained[self.dataset_name]
 
-        net = baseline_TextCNN(self.vocab, train_embedding_dim, is_static,
-                               baseline_TextCNNConfig.using_pretrained[self.dataset_name],
-                      channel_size, kernel_size, self.dataset_config.labels_num)
+        if is_entailment:
+            net = baseline_TextCNN_Entailment(vocab=self.vocab, train_embedding_word_dim=train_embedding_dim,
+                                              is_static=is_static, using_pretrained=using_pretrained,
+                                              num_channels=channel_size, kernel_sizes=kernel_size,
+                                              labels_num=self.dataset_config.labels_num, is_batch_normal=is_batch_normal)
+        else:
+            net = baseline_TextCNN(vocab=self.vocab, train_embedding_word_dim=train_embedding_dim,
+                                                  is_static=is_static, using_pretrained=using_pretrained,
+                                                  num_channels=channel_size, kernel_sizes=kernel_size,
+                                                  labels_num=self.dataset_config.labels_num, is_batch_normal=is_batch_normal)
         if is_load:
             model_path = baseline_config_model_load_path[self.dataset_name][self.model_name]
             net.load_state_dict(torch.load(model_path, map_location=self.device))
 
         return net
 
-    def __build_Bert(self, is_load):
+    def __build_Bert(self, is_load, is_entailment):
         is_fine_tune = baseline_BertConfig.is_fine_tuning[self.dataset_name]
-        net = baseline_Bert(self.dataset_config.labels_num, is_fine_tuning=is_fine_tune)
+        net = baseline_Bert(self.dataset_config.labels_num, is_fine_tuning=is_fine_tune, is_entailment=is_entailment)
 
         if is_load:
             model_path = baseline_config_model_load_path[self.dataset_name][self.model_name]
             net.load_state_dict(torch.load(model_path, map_location=self.device))
         return net
-
-

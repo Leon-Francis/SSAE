@@ -68,20 +68,31 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
 
-    text = 'hello, i love u ..\n'
+    from baseline_config import *
+    from baseline_data import baseline_MyDataset
+    from baseline_vocab import baseline_Vocab
+    from torch.utils.data import DataLoader
+    from baseline_nets import baseline_LSTM_Entailment, baseline_TextCNN_Entailment
+    dataset_config = baseline_config_dataset['SNLI']
 
-    tokenzier = BertTokenizer.from_pretrained('bert-base-uncased')
+    train_dataset = baseline_MyDataset('SNLI', dataset_config.train_data_path)
+    vocab = baseline_Vocab(train_dataset.data_token['pre']+train_dataset.data_token['hypo'],
+                                  is_using_pretrained=True, is_special=True,
+                                  vocab_limit_size=dataset_config.vocab_limit_size,
+                                  word_vec_file_path=dataset_config.pretrained_word_vectors_path)
+    train_dataset.token2seq(vocab, maxlen=dataset_config.padding_maxlen)
 
-    x = tokenzier(text, truncation=True, max_length=10, padding=True)
-    print(x)
-    # device = torch.device('cuda:3')
-    # model = BaselineModelBuilder(args.dataset, args.model, device, is_load=False)
-    # x = torch.tensor([0, 1, 2, 0], dtype=torch.long).to(device)
-    # types = torch.tensor([0, 0, 0, 0], dtype=torch.long).to(device)
-    # masks = torch.tensor([1, 1, 1, 1], dtype=torch.long).to(device)
-    # predicts = model.predict_class(x, types, masks)
-    #
-    # print(predicts)
+    print(len(train_dataset))
+    # print(train_dataset[0])
+
+    # net = baseline_LSTM_Entailment(50, 1, 100, vocab, 3, using_pretrained=True, bid=True, head_tail=False)
+    net = baseline_TextCNN_Entailment(vocab, 50, is_static=False, using_pretrained=True, num_channels=[50, 50, 50],
+                                      kernel_sizes=[3, 4, 5], labels_num=3, is_batch_normal=True)
+    train_dataset = DataLoader(train_dataset, batch_size=64, shuffle=True)
 
 
-
+    for (x_pre, x_hypo, label) in train_dataset:
+        pass
+        # print(x_pre)
+        # print(x_hypo)
+        # print(label)

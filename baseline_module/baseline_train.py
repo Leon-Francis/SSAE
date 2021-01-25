@@ -25,6 +25,7 @@ parser.add_argument('--note', type=str, default='')
 parser.add_argument('--load_model', choices=[True, False], default='no', type=parse_bool)
 parser.add_argument('--cuda', type=str, default='3')
 parser.add_argument('--skip_loss', type=float, default=0.15)
+parser.add_argument('--only_evaluate', type=parse_bool, default='no')
 args = parser.parse_args()
 
 
@@ -36,19 +37,26 @@ note = args.note
 is_load_model = args.load_model
 model_name = args.model
 using_bert = model_name == 'Bert'
-device = torch.device('cuda:'+args.cuda)
+if args.cuda == 'cpu':
+    device = torch.device('cpu')
+else:
+    device = torch.device('cuda:'+args.cuda)
 
 
 # prepare dataset
 temp_path = f'./baseline_models/traindata_{dataset_name}_{model_name}.pkl'
-if os.path.exists(temp_path) and False:
+if os.path.exists(temp_path):
     train_dataset = load_pkl_obj(temp_path)
 else:
     train_dataset = baseline_MyDataset(dataset_name, dataset_config.train_data_path, using_bert)
     if model_name == 'Bert':
         vocab = None
     else:
-        vocab = baseline_Vocab(train_dataset.data_token, is_using_pretrained=True,
+        if dataset_name == 'SNLI':
+            data_tokens = train_dataset.data_token['pre'] + train_dataset.data_token['hypo']
+        else:
+            data_tokens = train_dataset.data_token
+        vocab = baseline_Vocab(data_tokens, is_using_pretrained=True,
                                vocab_limit_size=dataset_config.vocab_limit_size,
                                word_vec_file_path=dataset_config.pretrained_word_vectors_path)
     train_dataset.token2seq(vocab, dataset_config.padding_maxlen)
@@ -72,12 +80,21 @@ test_dataset = DataLoader(test_dataset, batch_size=batch)
 
 if is_load_model: logging(f'loading model from {dataset_name} {model_name} {baseline_config_model_load_path[dataset_name][model_name]}')
 else: logging(f'training model {dataset_name} {model_name} from scratch')
-optimizer = optim.AdamW(
-    [
-        {'params': model.net.bert_model.parameters(), 'lr': 1e-5},
-        {'params': model.net.fc.parameters(), 'lr': lr}
-    ], lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.1
-)
+
+if using_bert:
+    optimizer = optim.AdamW(
+        [
+            {'params': model.net.bert_model.parameters(), 'lr': 1e-5},
+            {'params': model.net.fc.parameters(), 'lr': lr}
+        ], lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.1
+    )
+else:
+    optimizer = optim.AdamW(model.net.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.15)
+    # optimizer = optim.Adam(model.net.parameters(), lr=lr, weight_decay=0.05)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.96, patience=3,
+                                                     verbose=True, min_lr=3e-8)
+warmup_scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda ep: 1e-2 if ep < 4 else 1.0)
+
 criterion = nn.CrossEntropyLoss().to(device)
 
 
@@ -89,10 +106,14 @@ def train():
         for temp in train_dataset:
             if using_bert:
                 x, types, masks = temp[0].to(device), temp[1].to(device), temp[2].to(device)
+            elif dataset_name == 'SNLI':
+                x = (temp[0].to(device), temp[1].to(device))
+                types = masks = None
             else:
                 x = temp[0].to(device)
                 types = masks = None
-            y = temp[3].to(device)
+
+            y = temp[-1].to(device)
 
             logits = model(x, types, masks)
             loss = criterion(logits, y)
@@ -113,13 +134,16 @@ def evaluate():
     correct = 0
     total = 0
     with tqdm(total=len(test_dataset), desc='evaluate') as pbar:
-        for temp in train_dataset:
+        for temp in test_dataset:
             if using_bert:
                 x, types, masks = temp[0].to(device), temp[1].to(device), temp[2].to(device)
+            elif dataset_name == 'SNLI':
+                x = (temp[0].to(device), temp[1].to(device))
+                types = masks = None
             else:
                 x = temp[0].to(device)
                 types = masks = None
-            y = temp[3].to(device)
+            y = temp[-1].to(device)
 
             logits = model(x, types, masks)
             loss = criterion(logits, y)
@@ -127,7 +151,7 @@ def evaluate():
 
             predicts = logits.argmax(dim=-1)
             correct += predicts.eq(y).float().sum().item()
-            total += x.size()[0]
+            total += y.size()[0]
 
             pbar.set_postfix_str(f'loss {loss.item():.5f} acc {correct/total:.5f}')
             pbar.update(1)
@@ -153,15 +177,28 @@ def main():
                                                                       acc, get_time(), note)
             best_state = copy.deepcopy(model.net.state_dict())
 
-        if (ep+1) % (epoch // 3) == 0 and best_acc > save_acc_limit and best_state != None:
+        if epoch > 3 and (ep+1) % (epoch // 3) == 0 and best_acc > save_acc_limit and best_state != None:
             logging(f'saving best model acc {best_acc:.5f} in {best_path}')
             torch.save(best_state, best_path)
             best_state = None
 
+        warmup_scheduler.step(ep+1)
+        scheduler.step(evaluate_loss, ep+1)
 
-        logging(f'epoch {ep} done! train_loss {train_loss} evaluate_loss {evaluate_loss}'
-                f'acc {acc} now best_acc {best_acc}')
+
+        logging(f'epoch {ep} done! train_loss {train_loss:.5f} evaluate_loss {evaluate_loss:.5f} \n'
+                f'acc {acc:.5f} now best_acc {best_acc:.5f}')
+
+    if best_acc > save_acc_limit and best_state != None:
+        logging(f'saving best model acc {best_acc:.5f} in {best_path}')
+        torch.save(best_state, best_path)
+        best_state = None
+
 
 
 if __name__ == '__main__':
-    main()
+    if args.only_evaluate:
+        evaluate_loss, acc = evaluate()
+        logging(f'evaluate done! loss {evaluate_loss:.5f} acc {acc:.5f}')
+    else:
+        main()
