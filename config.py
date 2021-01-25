@@ -8,7 +8,7 @@ config_path = './config.py'
 class AttackConfig():
     output_dir = r'./output'
     train_multi_cuda = False
-    cuda_idx = 3
+    cuda_idx = 1
     if train_multi_cuda:
         multi_cuda_idx = [0, 1, 2, 3]
         cuda_idx = multi_cuda_idx[0]
@@ -32,8 +32,8 @@ class AttackConfig():
         Seq2Seq_learning_rate_LSTM = 1e-4
     else:
         Seq2Seq_learning_rate = 1e-3
-    gan_gen_learning_rate = 1e-3
-    gan_adv_learning_rate = 1e-3
+    gan_gen_learning_rate = 1e-4
+    gan_adv_learning_rate = 1e-4
 
     hidden_size = 768
     num_layers = 3

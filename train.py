@@ -36,7 +36,6 @@ def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
     gan_gen.train()
     gan_adv.train()
     baseline_model.train()
-    optimizer_gan_g.zero_grad()
     optimizer_gan_a.zero_grad()
 
     x, x_mask, y, label = train_data
@@ -63,7 +62,7 @@ def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
         perturb_logits = baseline_model(perturb_x)
 
     loss = criterion_ce(perturb_logits, label)
-    loss *= -1
+    loss *= -5
     loss.backward()
     optimizer_gan_a.step()
 
@@ -75,7 +74,6 @@ def train_gan_g(train_data, Seq2Seq_model, gan_gen, gan_adv, criterion_mse,
     gan_gen.train()
     gan_adv.train()
     optimizer_gan_g.zero_grad()
-    optimizer_gan_a.zero_grad()
 
     x, x_mask, y, _ = train_data
     # real_hidden: [batch, sen_len, hidden]
@@ -87,7 +85,6 @@ def train_gan_g(train_data, Seq2Seq_model, gan_gen, gan_adv, criterion_mse,
 
     loss.backward()
     optimizer_gan_g.step()
-    optimizer_gan_a.step()
 
     return loss.item()
 
