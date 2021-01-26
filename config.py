@@ -16,7 +16,7 @@ class AttackConfig():
     dataset = 'AGNEWS'  # choices = 'IMDB', 'AGNEWS', 'SNLI'
     baseline_model = 'LSTM'  # choices = 'LSTM', 'TextCNN', 'BidLSTM', 'Bert'
     debug_mode = False
-    epochs = 40
+    epochs = 60
     batch_size = 128
 
     load_pretrained_Seq2Seq = True
@@ -45,6 +45,7 @@ class AttackConfig():
     seq2seq_train_times = 1
     gan_gen_train_times = 1
     gan_adv_train_times = 1
+    gan_gen_train_limit = 7
 
     perturb_sample_num = 20
     perturb_search_times = 1

@@ -37,6 +37,7 @@ def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
     gan_adv.train()
     baseline_model.train()
     optimizer_gan_a.zero_grad()
+    optimizer_gan_g.zero_grad()
 
     x, x_mask, y, label = train_data
     # perturb_x: [batch, sen_len]
@@ -65,6 +66,7 @@ def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
     loss *= -5
     loss.backward()
     optimizer_gan_a.step()
+    optimizer_gan_g.step()
 
     return -loss.item()
 
@@ -73,6 +75,7 @@ def train_gan_g(train_data, Seq2Seq_model, gan_gen, gan_adv, criterion_mse,
                 optimizer_gan_g, optimizer_gan_a):
     gan_gen.train()
     gan_adv.train()
+    optimizer_gan_a.zero_grad()
     optimizer_gan_g.zero_grad()
 
     x, x_mask, y, _ = train_data
@@ -85,6 +88,7 @@ def train_gan_g(train_data, Seq2Seq_model, gan_gen, gan_adv, criterion_mse,
 
     loss.backward()
     optimizer_gan_g.step()
+    optimizer_gan_a.step()
 
     return loss.item()
 
@@ -340,10 +344,12 @@ if __name__ == '__main__':
                             optimizer_Seq2Seq, total_loss_Seq2Seq)
 
             for k in range(niter_gan):
-                for i in range(AttackConfig.gan_gen_train_times):
-                    total_loss_gan_g += train_gan_g(
-                        (x, x_mask, y, label), Seq2Seq_model, gan_gen, gan_adv,
-                        criterion_mse, optimizer_gan_g, optimizer_gan_a)
+                if epoch < AttackConfig.gan_gen_train_limit:
+                    for i in range(AttackConfig.gan_gen_train_times):
+                        total_loss_gan_g += train_gan_g(
+                            (x, x_mask, y, label), Seq2Seq_model, gan_gen,
+                            gan_adv, criterion_mse, optimizer_gan_g,
+                            optimizer_gan_a)
 
                 for i in range(AttackConfig.gan_adv_train_times):
                     total_loss_gan_a += train_gan_a(

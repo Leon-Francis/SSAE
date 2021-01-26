@@ -185,8 +185,8 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
             delta = torch.FloatTensor(search_z.size())  # 1.122
             delta[0] = 0.0
             for i in range(1, samples_num):
-                delta[i].uniform_(-1 * search_bound * (1.3**i),
-                                  search_bound * (1.3**i))
+                delta[i].uniform_(-1 * search_bound * (2**i),
+                                  search_bound * (2**i))
             delta = delta.to(AttackConfig.train_device)
             search_z += delta
             # pertub_hidden: [samples_num, sen_len, hidden_size]
