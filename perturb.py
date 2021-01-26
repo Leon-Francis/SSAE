@@ -151,7 +151,9 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir,
                     f'sample {i} attact success acc:{attack_succeeded_idx_num[i] / attack_num}\n\n'
                 )
             f.write(f'avg attack try times:{attack_count_num / attack_num}\n')
-    return attack_succeeded_num / attack_num, attack_succeeded_idx_num / attack_num, attack_count_num / attack_num
+    return attack_succeeded_num / attack_num, [
+        x / attack_num for x in attack_succeeded_idx_num
+    ], attack_count_num / attack_num
 
 
 def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
