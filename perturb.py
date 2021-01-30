@@ -3,7 +3,7 @@ from transformers import BertTokenizer
 import torch
 
 
-def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir,
+def perturb(data, Seq2Seq_model, gan_gen, gan_adv, huffman_tree, baseline_model, dir,
             attack_vocab):
     # Turn on evaluation mode which disables dropout.
     Seq2Seq_model.eval()
@@ -33,6 +33,7 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir,
                     perturb_x, successed_mask, counter, successed = search_fast(
                         Seq2Seq_model,
                         gan_gen,
+                        huffman_tree,
                         baseline_model,
                         label[i],
                         z[i],
@@ -156,7 +157,7 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir,
     ], attack_count_num / attack_num
 
 
-def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
+def search_fast(Seq2Seq_model, generator, huffman_tree, baseline_model, label, z,
                 samples_num, right):
     """search for adversary sample
 
@@ -192,7 +193,7 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
             # pertub_hidden: [samples_num, sen_len, hidden_size]
             perturb_hidden = generator(search_z)
             # pertub_x: [samples_num, seq_len]
-            perturb_x = Seq2Seq_model.decode(perturb_hidden).argmax(dim=2)
+            perturb_x = huffman_tree.get_sentence(perturb_hidden)
             if AttackConfig.baseline_model == 'Bert':
                 perturb_x_mask = torch.ones(perturb_x.shape)
                 # mask before [SEP]

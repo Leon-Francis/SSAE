@@ -30,9 +30,6 @@ class Seq2Seq_bert(nn.Module):
                                hidden_size=self.hidden_size,
                                num_layers=self.num_layers,
                                dropout=self.dropout)
-        self.fc = nn.Sequential(
-            nn.Dropout(0.5),
-            nn.Linear(self.hidden_size, vocab_size))
 
     def encode(self, inputs, inputs_mask, is_noise=False):
         """bert_based_encode
@@ -66,7 +63,7 @@ class Seq2Seq_bert(nn.Module):
             state (torch.tensoor): bert_hidden[0] [batch, seq_len, hidden_size]
 
         Returns:
-            [torch.tensor]: outputs [batch, seq_len, vocab_size]
+            [torch.tensor]: outputs [batch, seq_len, hidden_size]
         """
         # hidden [batch, seq_len, hidden_size]
         # state [batch, seq_len, hidden_size]
@@ -75,8 +72,8 @@ class Seq2Seq_bert(nn.Module):
             hidden = torch.cat([state, hidden], 2)
         self.decoder.flatten_parameters()
         outputs, _ = self.decoder(hidden.permute(1, 0, 2))
-        outputs = self.fc(outputs).permute(1, 0, 2)
-        # outputs [batch, seq_len, vocab_size]
+        outputs = outputs.permute(1, 0, 2)
+        # outputs [batch, seq_len, hidden_size]
         return outputs
 
     def forward(self,
@@ -272,6 +269,8 @@ if __name__ == "__main__":
     label_idx = torch.tensor(label_idx)
     Seq2Seq_model_bert = Seq2Seq_bert(hidden_size=AttackConfig.hidden_size).to(
         AttackConfig.train_device)
+    for param in Seq2Seq_model_bert.parameters():
+        print(param)
     criterion_baseline_model = nn.CrossEntropyLoss().to(
         AttackConfig.train_device)
     optimizer_baseline_model = optim.Adam(

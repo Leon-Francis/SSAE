@@ -8,7 +8,7 @@ config_path = './config.py'
 class AttackConfig():
     output_dir = r'./output'
     train_multi_cuda = False
-    cuda_idx = 1
+    cuda_idx = 2
     if train_multi_cuda:
         multi_cuda_idx = [0, 1, 2, 3]
         cuda_idx = multi_cuda_idx[0]
@@ -19,9 +19,9 @@ class AttackConfig():
     epochs = 60
     batch_size = 128
 
-    load_pretrained_Seq2Seq = True
+    load_pretrained_Seq2Seq = False
     head_tail = False
-    fine_tuning = False
+    fine_tuning = True
 
     if load_pretrained_Seq2Seq:
         if dataset == 'AGNEWS':
@@ -29,9 +29,9 @@ class AttackConfig():
 
     if fine_tuning:
         Seq2Seq_learning_rate_BERT = 5e-6
-        Seq2Seq_learning_rate_LSTM = 1e-4
+        Seq2Seq_learning_rate = 1e-4
     else:
-        Seq2Seq_learning_rate = 1e-3
+        Seq2Seq_learning_rate = 1e-4
     gan_gen_learning_rate = 1e-4
     gan_adv_learning_rate = 1e-4
 

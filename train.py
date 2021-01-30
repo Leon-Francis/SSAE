@@ -11,20 +11,25 @@ from data import AGNEWS_Dataset, IMDB_Dataset, SNLI_Dataset
 from tools import logging
 from config import config_path, AttackConfig
 from baseline_module.baseline_model_builder import BaselineModelBuilder
+from huffman_tree import HuffmanTree
 
 
-def train_Seq2Seq(train_data, model, criterion, optimizer, total_loss):
+def train_Seq2Seq(train_data, model, huffman_tree, criterion,
+                  optimizer_Seq2Seq, optimizer_hf, total_loss):
     model.train()
+    huffman_tree.train()
     x, x_mask, y, _ = train_data
     x, x_mask, y = x.to(AttackConfig.train_device), x_mask.to(
         AttackConfig.train_device), y.to(AttackConfig.train_device)
+    # logits [batch, sen_len, hidden_size]
     logits = model(x, x_mask, is_noise=False)
     model.zero_grad()
-    logits = logits.reshape(-1, logits.shape[-1])
-    y = y.reshape(-1)
-    loss = criterion(logits, y)
+    huffman_tree.zero_grad()
+    loss = huffman_tree(logits, y)
+
     loss.backward()
-    optimizer.step()
+    optimizer_Seq2Seq.step()
+    optimizer_hf.step()
 
     total_loss += loss.item()
 
@@ -32,20 +37,22 @@ def train_Seq2Seq(train_data, model, criterion, optimizer, total_loss):
 
 
 def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
-                optimizer_gan_g, optimizer_gan_a, criterion_ce):
+                huffman_tree, optimizer_gan_g, optimizer_gan_a, criterion_ce):
     gan_gen.train()
     gan_adv.train()
+    huffman_tree.train()
     baseline_model.train()
     optimizer_gan_a.zero_grad()
     optimizer_gan_g.zero_grad()
 
     x, x_mask, y, label = train_data
     # perturb_x: [batch, sen_len]
-    perturb_x = Seq2Seq_model(x,
-                              x_mask,
-                              is_noise=False,
-                              generator=gan_gen,
-                              adversary=gan_adv).argmax(dim=2)
+    perturb_x = huffman_tree.get_sentence(
+        Seq2Seq_model(x,
+                      x_mask,
+                      is_noise=False,
+                      generator=gan_gen,
+                      adversary=gan_adv))
     if AttackConfig.baseline_model == 'Bert':
         # perturb_x_mask: [batch, seq_len]
         perturb_x_mask = torch.ones(perturb_x.shape, requires_grad=True)
@@ -93,7 +100,7 @@ def train_gan_g(train_data, Seq2Seq_model, gan_gen, gan_adv, criterion_mse,
     return loss.item()
 
 
-def evaluate_gan(test_data, Seq2Seq_model, gan_gen, gan_adv, dir,
+def evaluate_gan(test_data, Seq2Seq_model, gan_gen, gan_adv, huffman_tree, dir,
                  attack_vocab):
     Seq2Seq_model.eval()
     gan_gen.eval()
@@ -106,20 +113,19 @@ def evaluate_gan(test_data, Seq2Seq_model, gan_gen, gan_adv, dir,
             x, x_mask, y = x.to(AttackConfig.train_device), x_mask.to(
                 AttackConfig.train_device), y.to(AttackConfig.train_device)
 
-            # sentence -> encoder -> decoder
-            Seq2Seq_outputs = Seq2Seq_model(x, x_mask, is_noise=False)
             # Seq2Seq_idx: [batch, seq_len]
-            Seq2Seq_idx = Seq2Seq_outputs.argmax(dim=2)
+            Seq2Seq_idx = huffman_tree.get_sentence(
+                Seq2Seq_model(x, x_mask, is_noise=False))
 
             # sentence -> encoder -> adversary -> generator ->  decoder
-            # eagd_outputs: [batch, seq_len, vocab_size]
-            eagd_outputs = Seq2Seq_model(x,
-                                         x_mask,
-                                         is_noise=False,
-                                         generator=gan_gen,
-                                         adversary=gan_adv)
+
             # eagd_idx: [batch_size, sen_len]
-            eagd_idx = eagd_outputs.argmax(dim=2)
+            eagd_idx = huffman_tree.get_sentence(
+                Seq2Seq_model(x,
+                              x_mask,
+                              is_noise=False,
+                              generator=gan_gen,
+                              adversary=gan_adv))
 
             if attack_vocab:
                 with open(dir, 'a') as f:
@@ -159,7 +165,8 @@ def evaluate_gan(test_data, Seq2Seq_model, gan_gen, gan_adv, dir,
                                 '\n' * 2)
 
 
-def evaluate_Seq2Seq(test_data, Seq2Seq_model, dir, attack_vocab):
+def evaluate_Seq2Seq(test_data, Seq2Seq_model, huffman_tree, dir,
+                     attack_vocab):
     Seq2Seq_model.eval()
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
     logging(f'Saving evaluate of Seq2Seq_model outputs into {dir}')
@@ -169,9 +176,8 @@ def evaluate_Seq2Seq(test_data, Seq2Seq_model, dir, attack_vocab):
         for x, x_mask, y, _ in test_data:
             x, x_mask, y = x.to(AttackConfig.train_device), x_mask.to(
                 AttackConfig.train_device), y.to(AttackConfig.train_device)
-            logits = Seq2Seq_model(x, x_mask, is_noise=False)
-            # outputs_idx: [batch, sen_len]
-            outputs_idx = logits.argmax(dim=2)
+            outputs_idx = huffman_tree.get_sentence(
+                Seq2Seq_model(x, x_mask, is_noise=False))
             acc_sum += (outputs_idx == y).float().sum().item()
             n += y.shape[0] * y.shape[1]
 
@@ -267,12 +273,21 @@ if __name__ == '__main__':
                                                   AttackConfig.train_device,
                                                   is_load=True)
 
+    word_count = {
+        k: v
+        for k, v in sorted(baseline_model_builder.vocab.word_count.items(),
+                           key=lambda x: x[1],
+                           reverse=True)
+    }
+
     # prepare dataset
     logging('preparing data...')
     train_data, test_data = build_dataset(baseline_model_builder.vocab)
 
     # init models
     logging('init models, optimizer, criterion...')
+    huffman_tree = HuffmanTree(word_count, baseline_model_builder.vocab).to(
+        AttackConfig.train_device)
     Seq2Seq_model = Seq2Seq_bert(baseline_model_builder.vocab.num).to(
         AttackConfig.train_device)
     if AttackConfig.load_pretrained_Seq2Seq:
@@ -296,10 +311,8 @@ if __name__ == '__main__':
                 'lr': AttackConfig.Seq2Seq_learning_rate_BERT
             }, {
                 'params': Seq2Seq_model.decoder.parameters()
-            }, {
-                'params': Seq2Seq_model.fc.parameters()
             }],
-            lr=AttackConfig.Seq2Seq_learning_rate_LSTM)
+            lr=AttackConfig.Seq2Seq_learning_rate)
     else:
         optimizer_Seq2Seq = optim.AdamW(Seq2Seq_model.parameters(),
                                         lr=AttackConfig.Seq2Seq_learning_rate)
@@ -307,6 +320,9 @@ if __name__ == '__main__':
                                   lr=AttackConfig.gan_gen_learning_rate)
     optimizer_gan_a = optim.AdamW(gan_adv.parameters(),
                                   lr=AttackConfig.gan_adv_learning_rate)
+    optimizer_ht = optim.AdamW(huffman_tree.parameters(),
+                               lr=AttackConfig.Seq2Seq_learning_rate)
+
     # init criterion
     criterion_ce = nn.CrossEntropyLoss().to(AttackConfig.train_device)
     criterion_mse = nn.MSELoss().to(AttackConfig.train_device)
@@ -334,14 +350,16 @@ if __name__ == '__main__':
             if not AttackConfig.load_pretrained_Seq2Seq:
                 for i in range(AttackConfig.seq2seq_train_times):
                     total_loss_Seq2Seq += train_Seq2Seq(
-                        (x, x_mask, y, label), Seq2Seq_model, criterion_ce,
-                        optimizer_Seq2Seq, total_loss_Seq2Seq)
+                        (x, x_mask, y, label), Seq2Seq_model, huffman_tree,
+                        criterion_ce, optimizer_Seq2Seq, optimizer_ht,
+                        total_loss_Seq2Seq)
             else:
                 if AttackConfig.fine_tuning:
                     for i in range(AttackConfig.seq2seq_train_times):
                         total_loss_Seq2Seq += train_Seq2Seq(
-                            (x, x_mask, y, label), Seq2Seq_model, criterion_ce,
-                            optimizer_Seq2Seq, total_loss_Seq2Seq)
+                            (x, x_mask, y, label), Seq2Seq_model, huffman_tree,
+                            criterion_ce, optimizer_Seq2Seq, optimizer_ht,
+                            total_loss_Seq2Seq)
 
             for k in range(niter_gan):
                 if epoch < AttackConfig.gan_gen_train_limit:
@@ -354,8 +372,8 @@ if __name__ == '__main__':
                 for i in range(AttackConfig.gan_adv_train_times):
                     total_loss_gan_a += train_gan_a(
                         (x, x_mask, y, label), Seq2Seq_model, gan_gen, gan_adv,
-                        baseline_model, optimizer_gan_g, optimizer_gan_a,
-                        criterion_ce)
+                        baseline_model, huffman_tree, optimizer_gan_g,
+                        optimizer_gan_a, criterion_ce)
 
             if niter % 100 == 0:
                 # decaying noise
@@ -368,25 +386,25 @@ if __name__ == '__main__':
 
         logging(f'epoch {epoch} evaluate Seq2Seq model')
         Seq2Seq_acc = evaluate_Seq2Seq(
-            test_data, Seq2Seq_model,
+            test_data, Seq2Seq_model, huffman_tree,
             cur_dir_models + f'/epoch{epoch}_evaluate_Seq2Seq',
             baseline_model_builder.vocab)
         logging(f'Seq2Seq_model acc = {Seq2Seq_acc}')
 
         logging(f'epoch {epoch} evaluate gan')
-        evaluate_gan(test_data, Seq2Seq_model, gan_gen, gan_adv,
+        evaluate_gan(test_data, Seq2Seq_model, gan_gen, gan_adv, huffman_tree,
                      cur_dir_models + f'/epoch{epoch}_evaluate_gan',
                      baseline_model_builder.vocab)
 
-        if (epoch + 1) % 5 == 0:
+        if (epoch + 1) % 1 == 0:
             os.makedirs(cur_dir_models + f'/epoch{epoch}')
             save_all_models(Seq2Seq_model, gan_gen, gan_adv,
                             cur_dir_models + f'/epoch{epoch}')
 
             logging(f'epoch {epoch} Staring perturb')
             attack_acc, attack_num_acc, attack_avg_times = perturb(
-                test_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
-                cur_dir + f'/epoch{epoch}_perturb',
+                test_data, Seq2Seq_model, gan_gen, gan_adv, huffman_tree,
+                baseline_model, cur_dir + f'/epoch{epoch}_perturb',
                 baseline_model_builder.vocab)
             log = ''
             log += f'attact success acc: {attack_acc}\n\n'

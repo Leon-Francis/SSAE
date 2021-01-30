@@ -1,1 +1,1 @@
-nohup python train_Seq2Seq.py > train_Seq2Seq_AGNEWS_1_fineturing_120epoch.log 2>&1 &
+nohup python train_Seq2Seq.py > Seq2Seq_AGNEWS_HSoftmax_120epoch_2.log 2>&1 &

@@ -11,33 +11,35 @@ import torch
 from transformers import BertTokenizer
 from shutil import copyfile
 from baseline_module.baseline_model_builder import BaselineModelBuilder
+from huffman_tree import HuffmanTree
 
 
-def train_Seq2Seq(train_data, test_data, model, criterion, optimizer, cur_dir,
-                  attack_vocab):
+def train_Seq2Seq(train_data, test_data, model, huffman_tree, criterion,
+                  optimizer_Seq2Seq, optimizer_ht, cur_dir, attack_vocab):
     best_accuracy = 0.0
     for epoch in range(AttackConfig.epochs):
         logging(f'epoch {epoch} start')
         logging(f'epoch {epoch} train Seq2Seq model')
         model.train()
+        huffman_tree.train()
         loss_mean = 0.0
         n = 0
         for x, x_mask, y, _ in train_data:
             x, x_mask, y = x.to(AttackConfig.train_device), x_mask.to(
                 AttackConfig.train_device), y.to(AttackConfig.train_device)
             model.zero_grad()
+            huffman_tree.zero_grad()
             logits = model(x, x_mask, is_noise=False)
-            logits = logits.reshape(-1, logits.shape[-1])
-            y = y.reshape(-1)
-            loss = criterion(logits, y)
+            loss = huffman_tree(logits, y)
             loss_mean += loss.item()
             loss.backward()
-            optimizer.step()
+            optimizer_Seq2Seq.step()
+            optimizer_ht.step()
             n += (x.shape[0] * x.shape[1])
         logging(f"epoch {epoch} train_loss is {loss_mean / n}")
         eval_accuracy = evaluate_Seq2Seq(
-            test_data, model, cur_dir + f'/eval_Seq2Seq_model_epoch_{epoch}',
-            attack_vocab)
+            test_data, model, huffman_tree,
+            cur_dir + f'/eval_Seq2Seq_model_epoch_{epoch}', attack_vocab)
         logging(f"epoch {epoch} test_acc is {eval_accuracy}")
         if best_accuracy < eval_accuracy:
             best_accuracy = eval_accuracy
@@ -45,8 +47,10 @@ def train_Seq2Seq(train_data, test_data, model, criterion, optimizer, cur_dir,
             torch.save(model.state_dict(), cur_dir + r'/Seq2Seq_model.pt')
 
 
-def evaluate_Seq2Seq(test_data, Seq2Seq_model, path, attack_vocab):
+def evaluate_Seq2Seq(test_data, Seq2Seq_model, huffman_tree, path,
+                     attack_vocab):
     Seq2Seq_model.eval()
+    huffman_tree.eval()
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
     logging(f'Saving evaluate of Seq2Seq_model outputs into {path}')
     with torch.no_grad():
@@ -55,9 +59,9 @@ def evaluate_Seq2Seq(test_data, Seq2Seq_model, path, attack_vocab):
         for x, x_mask, y, _ in test_data:
             x, x_mask, y = x.to(AttackConfig.train_device), x_mask.to(
                 AttackConfig.train_device), y.to(AttackConfig.train_device)
-            logits = Seq2Seq_model(x, x_mask, is_noise=False)
             # outputs_idx: [batch, sen_len]
-            outputs_idx = logits.argmax(dim=2)
+            outputs_idx = huffman_tree.get_sentence(
+                Seq2Seq_model(x, x_mask, is_noise=False))
             acc_sum += (outputs_idx == y).float().sum().item()
             n += y.shape[0] * y.shape[1]
             if attack_vocab:
@@ -148,10 +152,19 @@ if __name__ == '__main__':
                                                   AttackConfig.train_device,
                                                   is_load=True)
 
+    word_count = {
+        k: v
+        for k, v in sorted(baseline_model_builder.vocab.word_count.items(),
+                           key=lambda x: x[1],
+                           reverse=True)
+    }
+
     train_data, test_data = build_dataset(
         attack_vocab=baseline_model_builder.vocab)
 
     model = Seq2Seq_bert(baseline_model_builder.vocab.num).to(
+        AttackConfig.train_device)
+    huffman_tree = HuffmanTree(word_count, baseline_model_builder.vocab).to(
         AttackConfig.train_device)
     if AttackConfig.train_multi_cuda:
         model = nn.DataParallel(model, device_ids=AttackConfig.multi_cuda_idx)
@@ -166,13 +179,13 @@ if __name__ == '__main__':
                 'lr': AttackConfig.Seq2Seq_learning_rate_BERT
             }, {
                 'params': model.decoder.parameters()
-            }, {
-                'params': model.fc.parameters()
             }],
-            lr=AttackConfig.Seq2Seq_learning_rate_LSTM)
+            lr=AttackConfig.Seq2Seq_learning_rate)
     else:
         optimizer_Seq2Seq_model = optim.AdamW(
             model.parameters(), lr=AttackConfig.Seq2Seq_learning_rate)
-    train_Seq2Seq(train_data, test_data, model, criterion_Seq2Seq_model,
-                  optimizer_Seq2Seq_model, cur_dir,
-                  baseline_model_builder.vocab)
+    optimizer_ht = optim.AdamW(huffman_tree.parameters(),
+                               lr=AttackConfig.Seq2Seq_learning_rate)
+    train_Seq2Seq(train_data, test_data, model, huffman_tree,
+                  criterion_Seq2Seq_model, optimizer_Seq2Seq_model,
+                  optimizer_ht, cur_dir, baseline_model_builder.vocab)
