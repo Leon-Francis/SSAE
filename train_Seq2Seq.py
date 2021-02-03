@@ -11,7 +11,7 @@ import torch
 from transformers import BertTokenizer
 from shutil import copyfile
 from baseline_module.baseline_model_builder import BaselineModelBuilder
-from huffman_tree import HuffmanTree
+from model import Two_Layer_HierarchicalSoftmax
 
 
 def train_Seq2Seq(train_data, test_data, model, huffman_tree, criterion,
@@ -152,20 +152,13 @@ if __name__ == '__main__':
                                                   AttackConfig.train_device,
                                                   is_load=True)
 
-    word_count = {
-        k: v
-        for k, v in sorted(baseline_model_builder.vocab.word_count.items(),
-                           key=lambda x: x[1],
-                           reverse=True)
-    }
-
     train_data, test_data = build_dataset(
         attack_vocab=baseline_model_builder.vocab)
 
     model = Seq2Seq_bert(baseline_model_builder.vocab.num).to(
         AttackConfig.train_device)
-    huffman_tree = HuffmanTree(word_count, baseline_model_builder.vocab).to(
-        AttackConfig.train_device)
+    huffman_tree = Two_Layer_HierarchicalSoftmax(
+        baseline_model_builder.vocab.num).to(AttackConfig.train_device)
     if AttackConfig.train_multi_cuda:
         model = nn.DataParallel(model, device_ids=AttackConfig.multi_cuda_idx)
 

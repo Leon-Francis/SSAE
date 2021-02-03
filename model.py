@@ -4,6 +4,7 @@ from config import AttackConfig
 from transformers import BertModel
 from transformers import BertTokenizer
 from torch import optim
+import numpy as np
 
 
 class Seq2Seq_bert(nn.Module):
@@ -251,6 +252,109 @@ class JSDistance(nn.Module):
             d1 = torch.sum(input * torch.log(input / target)) / input.size(0)
             d2 = torch.sum(target * torch.log(target / input)) / input.size(0)
             return (d1 + d2) / 2
+
+
+class Two_Layer_HierarchicalSoftmax(nn.Module):
+    def __init__(self,
+                 ntokens,
+                 nhid=AttackConfig.hidden_size,
+                 ntokens_per_class=None):
+        super(Two_Layer_HierarchicalSoftmax, self).__init__()
+
+        # Parameters
+        self.ntokens = ntokens
+        self.nhid = nhid
+
+        if ntokens_per_class is None:
+            ntokens_per_class = int(np.ceil(np.sqrt(ntokens)))
+
+        self.ntokens_per_class = ntokens_per_class
+        self.nclasses = int(np.ceil(self.ntokens * 1. /
+                                    self.ntokens_per_class))
+        self.ntokens_actual = self.nclasses * self.ntokens_per_class
+
+        self.layer_top_W = nn.Parameter(torch.FloatTensor(
+            self.nhid, self.nclasses),
+                                        requires_grad=True)
+        self.layer_top_b = nn.Parameter(torch.FloatTensor(self.nclasses),
+                                        requires_grad=True)
+
+        self.layer_bottom_W = nn.Parameter(torch.FloatTensor(
+            self.nclasses, self.nhid, self.ntokens_per_class),
+                                           requires_grad=True)
+        self.layer_bottom_b = nn.Parameter(torch.FloatTensor(
+            self.nclasses, self.ntokens_per_class),
+                                           requires_grad=True)
+
+        self.softmax = nn.Softmax(dim=1)
+
+        self.init_weights()
+
+    def init_weights(self):
+
+        initrange = 0.1
+        self.layer_top_W.data.uniform_(-initrange, initrange)
+        self.layer_top_b.data.fill_(0)
+        self.layer_bottom_W.data.uniform_(-initrange, initrange)
+        self.layer_bottom_b.data.fill_(0)
+
+    def forward(self, inputs, labels):
+        """return loss
+
+        Args:
+            inputs (tensor): [batch, sen_len, hidden_size]
+            labels (tensor): [batch, sen_len]
+
+        Returns:
+            tensor: [1]
+        """
+        # input [batch * seq_len, hidden_size]
+        inputs = inputs.reshape(-1, inputs.shape[-1])
+        # label [batch * seq_len]
+        labels = labels.reshape(-1)
+        batch_size, d = inputs.size()
+
+        label_position_top = labels / self.ntokens_per_class
+        label_position_bottom = labels % self.ntokens_per_class
+
+        layer_top_logits = torch.matmul(inputs,
+                                        self.layer_top_W) + self.layer_top_b
+        # layer_top_prob [batch * sen_len, nclasses]
+        layer_top_probs = self.softmax(layer_top_logits)
+
+        layer_bottom_logits = torch.squeeze(
+            torch.bmm(torch.unsqueeze(inputs, dim=1),
+                      self.layer_bottom_W[label_position_top]),
+            dim=1) + self.layer_bottom_b[label_position_top]
+        layer_bottom_probs = self.softmax(layer_bottom_logits)
+        # target_probs [batch * sen_len]
+        target_probs = layer_top_probs[torch.arange(batch_size).long(
+        ), label_position_top] * layer_bottom_probs[
+            torch.arange(batch_size).long(), label_position_bottom]
+
+        return -torch.mean(torch.log(target_probs))
+
+    def get_sentence(self, hidden):
+        """get sentence from hidden
+
+        Args:
+            hidden (tensor): [batch, sen_len, hidden_size]
+
+        Returns:
+            [tensor]: [batch, sen_len]
+        """
+        batch_size = hidden.shape[0]
+        hidden = hidden.reshape(-1, hidden.shape[-1])
+        label_position_top = (torch.matmul(hidden, self.layer_top_W) +
+                              self.layer_top_b).argmax(dim=1)
+
+        label_position_bottom = (
+            torch.squeeze(torch.bmm(torch.unsqueeze(hidden, dim=1),
+                                    self.layer_bottom_W[label_position_top]),
+                          dim=1) +
+            self.layer_bottom_b[label_position_top]).argmax(dim=1)
+        return (label_position_top * self.ntokens_per_class +
+                label_position_bottom).reshape(batch_size, -1)
 
 
 if __name__ == "__main__":

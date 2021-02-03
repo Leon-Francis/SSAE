@@ -1,1 +1,1 @@
-nohup python train.py > Hieraechical_Softmax_0.log 2>&1 &
+nohup python train.py > Two_Layer_Hieraechical_Softmax_1.log 2>&1 &
