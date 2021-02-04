@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from transformers import BertTokenizer
 from perturb import perturb
 from shutil import copyfile
-from model import Seq2Seq_bert, LSTM_G, LSTM_A
+from model import Seq2Seq_bert, LSTM_G, LSTM_A, MLP_A, MLP_G
 from data import AGNEWS_Dataset, IMDB_Dataset, SNLI_Dataset
 from tools import logging
 from config import config_path, AttackConfig
@@ -290,13 +290,21 @@ if __name__ == '__main__':
         huffman_tree.load_state_dict(
             torch.load(AttackConfig.pretrained_huffman_tree_path,
                        map_location=AttackConfig.train_device))
-    gan_gen = LSTM_G(AttackConfig.super_hidden_size,
-                     AttackConfig.hidden_size,
-                     num_layers=3).to(AttackConfig.train_device)
+    if AttackConfig.gan_model == 'LSTM':
+        gan_gen = LSTM_G(AttackConfig.super_hidden_size,
+                         AttackConfig.hidden_size,
+                         num_layers=3).to(AttackConfig.train_device)
 
-    gan_adv = LSTM_A(AttackConfig.hidden_size,
-                     AttackConfig.super_hidden_size,
-                     num_layers=3).to(AttackConfig.train_device)
+        gan_adv = LSTM_A(AttackConfig.hidden_size,
+                         AttackConfig.super_hidden_size,
+                         num_layers=3).to(AttackConfig.train_device)
+    elif AttackConfig.gan_model == 'MLP':
+        gan_gen = MLP_G(AttackConfig.super_hidden_size,
+                        AttackConfig.hidden_size).to(AttackConfig.train_device)
+
+        gan_adv = MLP_A(AttackConfig.hidden_size,
+                        AttackConfig.super_hidden_size).to(
+                            AttackConfig.train_device)
     baseline_model = baseline_model_builder.net
 
     # init optimizer

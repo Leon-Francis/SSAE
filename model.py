@@ -129,10 +129,10 @@ class MLP_G(nn.Module):
 
     def forward(self, X):
         # X: [batch, seq_len, super_hidden_size]
-        X = X.view(X.shape[0], -1)
+        sen_len = X.shape[1]
+        X = X.view(-1, X.shape[-1])
         logits = self.mlp(X)
-        logits = logits.view(-1, AttackConfig.sen_len,
-                             AttackConfig.hidden_size)
+        logits = logits.view(-1, sen_len, AttackConfig.hidden_size)
         return logits
 
 
@@ -154,10 +154,10 @@ class MLP_A(nn.Module):
 
     def forward(self, X):
         # X: [batch, seq_len, hidden_size]
-        X = X.view(X.shape[0], -1)
+        sen_len = X.shape[1]
+        X = X.view(-1, X.shape[-1])
         logits = self.mlp(X)
-        logits = logits.view(-1, AttackConfig.sen_len,
-                             AttackConfig.super_hidden_size)
+        logits = logits.view(-1, sen_len, AttackConfig.super_hidden_size)
         return logits
 
 
