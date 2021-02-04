@@ -8,7 +8,7 @@ config_path = './config.py'
 class AttackConfig():
     output_dir = r'./output'
     train_multi_cuda = False
-    cuda_idx = 1
+    cuda_idx = 3
     if train_multi_cuda:
         multi_cuda_idx = [0, 1, 2, 3]
         cuda_idx = multi_cuda_idx[0]
@@ -25,7 +25,8 @@ class AttackConfig():
 
     if load_pretrained_Seq2Seq:
         if dataset == 'AGNEWS':
-            pretrained_Seq2Seq_path = r'./output/seq2seq_model/AGNEWS/1611484301/Seq2Seq_model.pt'
+            pretrained_Seq2Seq_path = r'./output/seq2seq_model/AGNEWS/1612375424/Seq2Seq_model.pt'
+            pretrained_huffman_tree_path = r'./output/seq2seq_model/AGNEWS/1612375424/Huffman_tree.pt'
 
     if fine_tuning:
         Seq2Seq_learning_rate_BERT = 5e-6

@@ -258,7 +258,7 @@ class Two_Layer_HierarchicalSoftmax(nn.Module):
     def __init__(self,
                  ntokens,
                  nhid=AttackConfig.hidden_size,
-                 ntokens_per_class=None):
+                 ntokens_per_class=18):
         super(Two_Layer_HierarchicalSoftmax, self).__init__()
 
         # Parameters

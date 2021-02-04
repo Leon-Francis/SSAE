@@ -45,6 +45,8 @@ def train_Seq2Seq(train_data, test_data, model, huffman_tree, criterion,
             best_accuracy = eval_accuracy
             logging('Saveing Seq2Seq models...')
             torch.save(model.state_dict(), cur_dir + r'/Seq2Seq_model.pt')
+            torch.save(huffman_tree.state_dict(),
+                       cur_dir + r'/Huffman_tree.pt')
 
 
 def evaluate_Seq2Seq(test_data, Seq2Seq_model, huffman_tree, path,

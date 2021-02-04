@@ -287,6 +287,9 @@ if __name__ == '__main__':
         Seq2Seq_model.load_state_dict(
             torch.load(AttackConfig.pretrained_Seq2Seq_path,
                        map_location=AttackConfig.train_device))
+        huffman_tree.load_state_dict(
+            torch.load(AttackConfig.pretrained_huffman_tree_path,
+                       map_location=AttackConfig.train_device))
     gan_gen = LSTM_G(AttackConfig.super_hidden_size,
                      AttackConfig.hidden_size,
                      num_layers=3).to(AttackConfig.train_device)

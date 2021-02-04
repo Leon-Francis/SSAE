@@ -193,7 +193,8 @@ def search_fast(Seq2Seq_model, generator, huffman_tree, baseline_model, label, z
             # pertub_hidden: [samples_num, sen_len, hidden_size]
             perturb_hidden = generator(search_z)
             # pertub_x: [samples_num, seq_len]
-            perturb_x = huffman_tree.get_sentence(perturb_hidden)
+            perturb_x = huffman_tree.get_sentence(
+                Seq2Seq_model.decode(perturb_hidden))
             if AttackConfig.baseline_model == 'Bert':
                 perturb_x_mask = torch.ones(perturb_x.shape)
                 # mask before [SEP]
