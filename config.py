@@ -8,7 +8,7 @@ config_path = './config.py'
 class AttackConfig():
     output_dir = r'./output'
     train_multi_cuda = False
-    cuda_idx = 1
+    cuda_idx = 0
     if train_multi_cuda:
         multi_cuda_idx = [0, 1, 2, 3]
         cuda_idx = multi_cuda_idx[0]
@@ -22,6 +22,7 @@ class AttackConfig():
     load_pretrained_Seq2Seq = True
     head_tail = False
     fine_tuning = False
+    limit_gen_train = False
 
     if load_pretrained_Seq2Seq:
         if dataset == 'AGNEWS':
@@ -31,7 +32,7 @@ class AttackConfig():
         Seq2Seq_learning_rate_BERT = 5e-6
         Seq2Seq_learning_rate_LSTM = 1e-4
     else:
-        Seq2Seq_learning_rate = 1e-3
+        Seq2Seq_learning_rate = 1e-4
     gan_gen_learning_rate = 1e-4
     gan_adv_learning_rate = 1e-4
 
@@ -43,9 +44,12 @@ class AttackConfig():
 
     gan_schedule = [1, 3, 5]
     seq2seq_train_times = 1
-    gan_gen_train_times = 1
+    gan_gen_train_times = 5
     gan_adv_train_times = 1
-    gan_gen_train_limit = 7
+    if limit_gen_train:
+        gan_gen_train_limit = 7
+    else:
+        gan_gen_train_limit = epochs
 
     perturb_sample_num = 20
     perturb_search_times = 1

@@ -3,6 +3,7 @@ import time
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
+from torch.nn import functional as F
 from transformers import BertTokenizer
 from perturb import perturb
 from shutil import copyfile
@@ -33,20 +34,22 @@ def train_Seq2Seq(train_data, model, criterion, optimizer, total_loss):
 
 def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
                 optimizer_gan_g, optimizer_gan_a, criterion_ce):
+    Seq2Seq_model.train()
     gan_gen.train()
     gan_adv.train()
     baseline_model.train()
     optimizer_gan_a.zero_grad()
-    optimizer_gan_g.zero_grad()
 
     x, x_mask, y, label = train_data
-    # perturb_x: [batch, sen_len]
-    perturb_x = Seq2Seq_model(x,
-                              x_mask,
-                              is_noise=False,
-                              generator=gan_gen,
-                              adversary=gan_adv).argmax(dim=2)
+    # perturb_x: [batch, sen_len, vocab_size]
+    perturb_x_logits = Seq2Seq_model(x,
+                                     x_mask,
+                                     is_noise=False,
+                                     generator=gan_gen,
+                                     adversary=gan_adv)
+    perturb_x = perturb_x_logits.argmax(dim=2)
     if AttackConfig.baseline_model == 'Bert':
+        # TODO: finish here
         # perturb_x_mask: [batch, seq_len]
         perturb_x_mask = torch.ones(perturb_x.shape, requires_grad=True)
         with torch.no_grad():
@@ -60,19 +63,20 @@ def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
         # perturb_logits: [batch, 4]
         perturb_logits = baseline_model(perturb_x, perturb_x_mask)
     else:
-        perturb_logits = baseline_model(perturb_x)
+        perturb_logits = baseline_model.forward_with_embedding(
+            F.softmax(perturb_x_logits, dim=2))
 
     loss = criterion_ce(perturb_logits, label)
-    loss *= -5
+    loss *= -1
     loss.backward()
     optimizer_gan_a.step()
-    optimizer_gan_g.step()
 
     return -loss.item()
 
 
 def train_gan_g(train_data, Seq2Seq_model, gan_gen, gan_adv, criterion_mse,
                 optimizer_gan_g, optimizer_gan_a):
+    Seq2Seq_model.train()
     gan_gen.train()
     gan_adv.train()
     optimizer_gan_a.zero_grad()
