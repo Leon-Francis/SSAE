@@ -62,13 +62,12 @@ def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
     else:
         perturb_logits = baseline_model(perturb_x)
 
-    loss = criterion_ce(perturb_logits, label)
-    loss *= -5
+    loss = criterion_ce(perturb_logits, (label + 1) % 4)
     loss.backward()
     optimizer_gan_a.step()
     optimizer_gan_g.step()
 
-    return -loss.item()
+    return loss.item()
 
 
 def train_gan_g(train_data, Seq2Seq_model, gan_gen, gan_adv, criterion_mse,
