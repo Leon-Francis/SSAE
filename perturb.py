@@ -41,112 +41,107 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir,
                     attack_count_num += counter
                     attack_num += 1
 
-                    if i % 100 == 0:
-                        if attack_vocab:
+                    if attack_vocab:
+                        f.write(
+                            "==================================================\n"
+                        )
+                        f.write('Orginal sentence: \n')
+                        f.write(' '.join(
+                            [attack_vocab.get_word(token)
+                             for token in y[i]]) + "\n" * 2)
+
+                        if successed:
+                            attack_succeeded_num += 1
                             f.write(
-                                "==================================================\n"
+                                '==============Attark succeed!=================\n'
                             )
-                            f.write('Orginal sentence: \n')
-                            f.write(' '.join([
-                                attack_vocab.get_word(token) for token in y[i]
-                            ]) + "\n" * 2)
-
-                            if successed:
-                                attack_succeeded_num += 1
-                                f.write(
-                                    '==============Attark succeed!=================\n'
-                                )
-                                f.write(f'5 samples try for {counter} times\n')
-                                f.write('Attack successed sample: \n')
-                                for index in range(len(successed_mask)):
-                                    if successed_mask[index].item():
-                                        attack_succeeded_idx_num[index] += 1
-                                        f.write(' '.join([
-                                            attack_vocab.get_word(token)
-                                            for token in perturb_x[index]
-                                        ]))
-                                        f.write('\n')
-
-                                f.write('\nAll attack samples as follows: \n')
-                                for i, perturb_x_sample in enumerate(
-                                        perturb_x):
+                            f.write(f'5 samples try for {counter} times\n')
+                            f.write('Attack successed sample: \n')
+                            for index in range(len(successed_mask)):
+                                if successed_mask[index].item():
+                                    attack_succeeded_idx_num[index] += 1
                                     f.write(' '.join([
                                         attack_vocab.get_word(token)
-                                        for token in perturb_x_sample
-                                    ]))
-                                    if successed_mask[i]:
-                                        f.write('    attact successed!')
-                                    else:
-                                        f.write('    attact failed!')
-                                    f.write('\n')
-                                f.write(
-                                    '\n============================================\n'
-                                )
-                                f.flush()
-                            else:
-                                f.write(
-                                    '==============Attack Failed ==================\n'
-                                )
-                                f.write(f'5 samples try for {counter} times\n')
-                                f.write('\nAll attack samples as follows: \n')
-                                for i, perturb_x_sample in enumerate(
-                                        perturb_x):
-                                    f.write(' '.join([
-                                        attack_vocab.get_word(token)
-                                        for token in perturb_x_sample
+                                        for token in perturb_x[index]
                                     ]))
                                     f.write('\n')
+
+                            f.write('\nAll attack samples as follows: \n')
+                            for i, perturb_x_sample in enumerate(perturb_x):
+                                f.write(' '.join([
+                                    attack_vocab.get_word(token)
+                                    for token in perturb_x_sample
+                                ]))
+                                if successed_mask[i]:
+                                    f.write('    attact successed!')
+                                else:
+                                    f.write('    attact failed!')
+                                f.write('\n')
+                            f.write(
+                                '\n============================================\n'
+                            )
+                            f.flush()
                         else:
                             f.write(
-                                "==================================================\n"
+                                '==============Attack Failed ==================\n'
                             )
-                            f.write('Orginal sentence: \n')
-                            f.write(' '.join(
-                                tokenizer.convert_ids_to_tokens(y[i])) +
-                                    "\n" * 2)
+                            f.write(f'5 samples try for {counter} times\n')
+                            f.write('\nAll attack samples as follows: \n')
+                            for i, perturb_x_sample in enumerate(perturb_x):
+                                f.write(' '.join([
+                                    attack_vocab.get_word(token)
+                                    for token in perturb_x_sample
+                                ]))
+                                f.write('\n')
+                    else:
+                        f.write(
+                            "==================================================\n"
+                        )
+                        f.write('Orginal sentence: \n')
+                        f.write(
+                            ' '.join(tokenizer.convert_ids_to_tokens(y[i])) +
+                            "\n" * 2)
 
-                            if successed:
-                                attack_succeeded_num += 1
-                                f.write(
-                                    '==============Attark succeed!=================\n'
-                                )
-                                f.write(f'5 samples try for {counter} times\n')
-                                f.write('Attack successed sample: \n')
-                                for index in range(len(successed_mask)):
-                                    if successed_mask[index].item():
-                                        attack_succeeded_idx_num[index] += 1
-                                        f.write(' '.join(
-                                            tokenizer.convert_ids_to_tokens(
-                                                perturb_x[index])))
-                                        f.write('\n')
-
-                                f.write('\nAll attack samples as follows: \n')
-                                for i, perturb_x_sample in enumerate(
-                                        perturb_x):
+                        if successed:
+                            attack_succeeded_num += 1
+                            f.write(
+                                '==============Attark succeed!=================\n'
+                            )
+                            f.write(f'5 samples try for {counter} times\n')
+                            f.write('Attack successed sample: \n')
+                            for index in range(len(successed_mask)):
+                                if successed_mask[index].item():
+                                    attack_succeeded_idx_num[index] += 1
                                     f.write(' '.join(
                                         tokenizer.convert_ids_to_tokens(
-                                            perturb_x_sample)))
-                                    if successed_mask[i]:
-                                        f.write('    attact successed!')
-                                    else:
-                                        f.write('    attact failed!')
+                                            perturb_x[index])))
                                     f.write('\n')
-                                f.write(
-                                    '\n============================================\n'
-                                )
-                                f.flush()
-                            else:
-                                f.write(
-                                    '==============Attack Failed ==================\n'
-                                )
-                                f.write(f'5 samples try for {counter} times\n')
-                                f.write('\nAll attack samples as follows: \n')
-                                for i, perturb_x_sample in enumerate(
-                                        perturb_x):
-                                    f.write(' '.join(
-                                        tokenizer.convert_ids_to_tokens(
-                                            perturb_x_sample)))
-                                    f.write('\n')
+
+                            f.write('\nAll attack samples as follows: \n')
+                            for i, perturb_x_sample in enumerate(perturb_x):
+                                f.write(' '.join(
+                                    tokenizer.convert_ids_to_tokens(
+                                        perturb_x_sample)))
+                                if successed_mask[i]:
+                                    f.write('    attact successed!')
+                                else:
+                                    f.write('    attact failed!')
+                                f.write('\n')
+                            f.write(
+                                '\n============================================\n'
+                            )
+                            f.flush()
+                        else:
+                            f.write(
+                                '==============Attack Failed ==================\n'
+                            )
+                            f.write(f'5 samples try for {counter} times\n')
+                            f.write('\nAll attack samples as follows: \n')
+                            for i, perturb_x_sample in enumerate(perturb_x):
+                                f.write(' '.join(
+                                    tokenizer.convert_ids_to_tokens(
+                                        perturb_x_sample)))
+                                f.write('\n')
 
             f.write(
                 f'attact success acc:{attack_succeeded_num / attack_num}\n\n')
@@ -195,7 +190,7 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
             delta = delta.to(AttackConfig.train_device)
             search_z += delta
             # pertub_hidden: [samples_num, sen_len, hidden_size]
-            perturb_hidden = generator(search_z)
+            perturb_hidden = search_z
             # pertub_x: [samples_num, seq_len]
             perturb_x = Seq2Seq_model.decode(perturb_hidden).argmax(dim=2)
             if AttackConfig.baseline_model == 'Bert':
