@@ -1,1 +1,1 @@
-nohup python train.py > train_results_1.log 2>&1 &
+nohup python train.py > train_change_label_loss_0.log 2>&1 &
