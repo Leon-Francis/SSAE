@@ -36,12 +36,14 @@ lr = args.lr
 note = args.note
 is_load_model = args.load_model
 model_name = args.model
-using_bert = model_name == 'Bert'
+using_bert = model_name in {'Bert', 'Bert_E'}
 if args.cuda == 'cpu':
     device = torch.device('cpu')
 else:
     device = torch.device('cuda:'+args.cuda)
 
+if dataset_name == 'SNLI':
+    assert model_name[-1] == 'E'
 
 # prepare dataset
 temp_path = f'./baseline_models/traindata_{dataset_name}_{model_name}.pkl'
@@ -49,14 +51,16 @@ if os.path.exists(temp_path):
     train_dataset = load_pkl_obj(temp_path)
 else:
     train_dataset = baseline_MyDataset(dataset_name, dataset_config.train_data_path, using_bert)
-    if model_name == 'Bert':
+    if using_bert:
         vocab = None
     else:
+        is_special = False
         if dataset_name == 'SNLI':
             data_tokens = train_dataset.data_token['pre'] + train_dataset.data_token['hypo']
+            is_special = True
         else:
             data_tokens = train_dataset.data_token
-        vocab = baseline_Vocab(data_tokens, is_using_pretrained=True,
+        vocab = baseline_Vocab(data_tokens, is_using_pretrained=True, is_special=is_special,
                                vocab_limit_size=dataset_config.vocab_limit_size,
                                word_vec_file_path=dataset_config.pretrained_word_vectors_path)
     train_dataset.token2seq(vocab, dataset_config.padding_maxlen)
@@ -86,7 +90,7 @@ if using_bert:
         [
             {'params': model.net.bert_model.parameters(), 'lr': 1e-5},
             {'params': model.net.fc.parameters(), 'lr': lr}
-        ], lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.1
+        ], lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.25
     )
 else:
     optimizer = optim.AdamW(model.net.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.15)

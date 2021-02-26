@@ -102,20 +102,19 @@ class baseline_MyDataset(Dataset):
                     self.data_tensor.append(self.__encode_tokens(tokens))
         else:
             if self.dataset_name == 'SNLI':
-                assert len(self.data_token['pre']) == len(self.data_token['hypo']) == len(self.labels)
-                for i in tqdm(range(len(self.data_token['pre']))):
+                for i in tqdm(range(len(self.premise_data))):
                     t = self.tokenizer(text=self.premise_data[i], text_pair=self.hypothesis_data[i],
                                        max_length=maxlen*2, truncation=True, padding='max_length')
-                    self.data_token.append(torch.tensor(t['input_ids'], dtype=torch.long))
+                    self.data_token['comb'].append(torch.tensor(t['input_ids'], dtype=torch.long))
                     self.data_types.append(torch.tensor(t['token_type_ids'], dtype=torch.long))
                     self.data_masks.append(torch.tensor(t['attention_mask'], dtype=torch.long))
             else:
                 for sen in tqdm(self.data):
                     t = self.tokenizer(sen, max_length=maxlen, truncation=True, padding='max_length')
-                    self.data_token['comb'].append(torch.tensor(t['input_ids'], dtype=torch.long))
+                    self.data_token.append(torch.tensor(t['input_ids'], dtype=torch.long))
                     self.data_types.append(torch.tensor(t['token_type_ids'], dtype=torch.long))
                     self.data_masks.append(torch.tensor(t['attention_mask'], dtype=torch.long))
-                self.data_tensor['comb'] = self.data_token
+                self.data_tensor = self.data_token
 
         for label in self.labels:
             self.labels_tensor.append(torch.tensor(label))
@@ -140,7 +139,7 @@ class baseline_MyDataset(Dataset):
     def __getitem__(self, item):
         if self.using_bert:
             if self.dataset_name == 'SNLI':
-                return (self.data_tensor['comb'][item], self.data_types[item], self.data_masks[item],
+                return (self.data_token['comb'][item], self.data_types[item], self.data_masks[item],
                         self.labels_tensor[item])
             return (self.data_tensor[item], self.data_types[item], self.data_masks[item],
                     self.labels_tensor[item])

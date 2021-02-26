@@ -7,6 +7,7 @@ class baseline_Vocab():
 
     def __init__(self, origin_data_tokens, word_dim:int=100, vocab_limit_size=80000, is_special=False,
                  is_using_pretrained=True, word_vec_file_path=r'./static/glove.6B.100d.txt'):
+        assert len(origin_data_tokens) > 0
         self.file_path = word_vec_file_path
         self.word_dim = word_dim
         self.word_dict = {}
@@ -16,7 +17,9 @@ class baseline_Vocab():
         self.data_tokens = []
         self.words_vocab = []
         self.is_special = is_special # enable <cls> and <sep>
-        assert len(origin_data_tokens) > 0
+        self.special_word_unk = ('<unk>', 0)
+        self.special_word_cls = ('[CLS]', 1)
+        self.special_word_sep = ('[SEP]', 2)
         self.data_tokens = origin_data_tokens
         self.__build_words_index()
         self.__limit_dict_size(vocab_limit_size)
@@ -39,24 +42,27 @@ class baseline_Vocab():
 
     def __limit_dict_size(self, vocab_limit_size):
         limit = vocab_limit_size
-        self.word_count = sorted(self.word_count.items(), key=lambda x: x[1], reverse=True)
+        word_count_temp = sorted(self.word_count.items(), key=lambda x: x[1], reverse=True)
         count = 1
-        self.words_vocab.append('<unk>')
+        self.words_vocab.append(self.special_word_unk[0])
+        self.word_count[self.special_word_unk[0]] = int(1e9)
         if self.is_special:
-            self.words_vocab += ['<cls>', '<sep>']
+            self.words_vocab += [self.special_word_cls[0], self.special_word_sep[0]]
+            self.word_count[self.special_word_cls[0]] = int(1e9)
+            self.word_count[self.special_word_sep[0]] = int(1e9)
             count += 2
         temp = {}
-        for x, y in self.word_count:
+        for x, y in word_count_temp:
             if count > limit:
                 break
             temp[x] = count
             self.words_vocab.append(x)
             count += 1
         self.word_dict = temp
-        self.word_dict['<unk>'] = 0
+        self.word_dict[self.special_word_unk[0]] = 0
         if self.is_special:
-            self.word_dict['<cls>'] = 1
-            self.word_dict['<sep>'] = 2
+            self.word_dict[self.special_word_cls[0]] = 1
+            self.word_dict[self.special_word_sep[0]] = 2
         self.num = count
         assert self.num == len(self.word_dict) == len(self.words_vocab)
         self.vectors = np.ndarray([self.num, self.word_dim], dtype='float32')
@@ -64,10 +70,10 @@ class baseline_Vocab():
     def __read_pretrained_word_vecs(self):
         num = 0
         word_dict = {}
-        word_dict['<unk>'] = num  # unknown word
+        word_dict[self.special_word_unk[0]] = num  # unknown word
         if self.is_special:
-            word_dict['<cls>'] = 1
-            word_dict['<sep>'] = 2
+            word_dict[self.special_word_cls[0]] = 1
+            word_dict[self.special_word_sep[0]] = 2
             num += 2
         with open(self.file_path, 'r', encoding='utf-8') as file:
             file = file.readlines()
@@ -94,6 +100,15 @@ class baseline_Vocab():
 
     def __len__(self):
         return self.num
+
+    def get_word_count(self, word):
+        # word could be int or str
+        if isinstance(word, int):
+            word = self.get_word(word)
+        if word not in self.word_count:
+            return 0 # OOV
+        return self.word_count[word]
+
 
     def get_index(self, word: str):
         word = word.lower()

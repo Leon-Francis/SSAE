@@ -9,12 +9,14 @@ from datetime import datetime
 # print(os.getcwd())
 
 def load_pkl_obj(path):
+    logging(f'loading pkl obj from {path}')
     if os.path.exists(path):
         with open(path, 'rb') as file:
             return pickle.load(file)
     return None
 
 def save_pkl_obj(obj, path):
+    logging(f'saving pkl obj to {path}')
     with open(path, 'wb') as file:
         pickle.dump(obj, file)
 
@@ -32,7 +34,8 @@ def read_standard_data(path):
     data = []
     labels = []
     with open(path, 'r', encoding='utf-8') as file:
-        for line in file:
+        for i, line in enumerate(file):
+            # if i == 500: break
             line = line.strip('\n')
             data.append(line[:-1])
             labels.append(int(line[-1]))
@@ -88,6 +91,7 @@ def read_SNLI_origin_data(sentence_path, data_path):
     labels =  []
     with open(data_path, 'r') as file:
         for i, line in enumerate(file):
+            # if i == 500: break
             temp = line.strip().split()
             labels.append(label_classes[temp[0]])
             premise.append(sentences[int(temp[1])])

@@ -33,9 +33,9 @@ baseline_config_model_load_path = {
         'Bert': absolute_path_prefix+r'/baseline_module/baseline_models/AGNEWS/Bert_0.94132_01_24-01-24_.pt',
     },
     'SNLI': {
-        'LSTM_E': absolute_path_prefix+r'/baseline_module/baseline_models/SNLI/LSTM.pt',
-        'BidLSTM_E': absolute_path_prefix+r'/baseline_module/baseline_models/SNLI/BidLSTM.pt',
-        'TextCNN_E': absolute_path_prefix+r'/baseline_module/baseline_models/SNLI/TextCNN.pt',
+        'LSTM_E': absolute_path_prefix+r'/baseline_module/baseline_models/SNLI/LSTM_E_0.74338_01_29-23-40_.pt',
+        'BidLSTM_E': absolute_path_prefix+r'/baseline_module/baseline_models/SNLI/BidLSTM_E_0.75214_01_30-15-30_.pt',
+        'TextCNN_E': absolute_path_prefix+r'/baseline_module/baseline_models/SNLI/TextCNN_E_0.74287_01_29-14-46_.pt',
         'Bert_E': absolute_path_prefix+r'/baseline_module/baseline_models/SNLI/Bert.pt',
     }
 }
@@ -75,12 +75,12 @@ class baseline_TextCNNConfig():
     channel_kernel_size = {
         'IMDB': ([50, 50, 50], [3, 4, 5]),
         'AGNEWS': ([50, 50, 50], [3, 4, 5]),
-        'SNLI': ([50, 50, 50], [3, 4, 5])
+        'SNLI': ([30, 40, 50, 60], [2, 3, 4, 5])
     }
     is_static = {
         'IMDB': True,
         'AGNEWS': True,
-        'SNLI': False,
+        'SNLI': True,
     }
     using_pretrained = {
         'IMDB': True,
@@ -104,7 +104,7 @@ class baseline_LSTMConfig():
     num_hiddens = {
         'IMDB': 128,
         'AGNEWS': 100,
-        'SNLI': 100,
+        'SNLI': 256,
     }
 
     num_layers = {
@@ -116,19 +116,19 @@ class baseline_LSTMConfig():
     is_using_pretrained = {
         'IMDB': False,
         'AGNEWS': True,
-        'SNLI': True,
+        'SNLI': False,
     }
 
     word_dim = {
         'IMDB': 50,
         'AGNEWS': 100,
-        'SNLI': 100
+        'SNLI': 300
     }
 
     is_head_and_tail = {
         'IMDB': False,
         'AGNEWS': True,
-        'SNLI': False
+        'SNLI': True
     }
 
 

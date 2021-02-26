@@ -31,7 +31,7 @@ class BaselineModelBuilder():
             self.vocab = None
 
         is_entailment = dataset_name == 'SNLI'
-        if 'LSTM' in model_name:
+        if model_name in {'LSTM', 'LSTM_E'}:
             self.net = self.__build_LSTM(is_bid=False, is_load=is_load, is_entailment=is_entailment)
         elif 'BidLSTM' in model_name:
             self.net = self.__build_LSTM(is_bid=True, is_load=is_load, is_entailment=is_entailment)

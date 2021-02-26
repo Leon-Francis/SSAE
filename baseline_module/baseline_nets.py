@@ -22,6 +22,8 @@ class baseline_LSTM(nn.Module):
         self.head_tail = head_tail
         self.bid = bid
 
+        self.vec = torch.from_numpy(vocab.vectors)
+
         self.embedding_layer = nn.Embedding(vocab.num, word_dim)
         self.embedding_layer.weight.requires_grad = True
         if using_pretrained:
@@ -56,6 +58,24 @@ class baseline_LSTM(nn.Module):
         X = self.embedding_layer(X)  #[seq_len, batch, word_dim]
 
         X = self.dropout(X)
+
+        outputs, _ = self.encoder(X) # output, (hidden, memory)
+        # outputs [seq_len, batch, hidden*2] *2 means using bidrectional
+        # head and tail, [batch, hidden*4]
+
+
+        temp = torch.cat((outputs[0], outputs[-1]), -1) if self.head_tail else outputs[-1]
+
+        outputs = self.fc(temp) # [batch, hidden*4] -> [batch, labels]
+
+        return outputs
+
+    def forward_with_embedding(self, embeddings: torch.Tensor):
+        # [batch, seq, vovab_size]
+        self.vec = self.vec.to(embeddings.device)
+        embeddings = torch.matmul(embeddings, self.vec)
+        embeddings = embeddings.permute(1, 0, 2)
+        X = self.dropout(embeddings)
 
         outputs, _ = self.encoder(X) # output, (hidden, memory)
         # outputs [seq_len, batch, hidden*2] *2 means using bidrectional
@@ -122,6 +142,22 @@ class baseline_TextCNN(nn.Module):
 
         embeddings = self.dropout(embeddings)
 
+        embeddings = embeddings.permute(0, 2, 1) # [batch, dims, seqlen]
+
+
+        outs = torch.cat(
+            [self.pool(F.relu(conv(embeddings))).squeeze(-1) for conv in self.convs], dim=1)
+
+        outs = self.dropout(outs)
+
+        logits = self.fc(outs)
+        return logits
+
+    def forward_with_embedding(self, embeddings:torch.Tensor):
+        # [batch, seq, embed]
+        assert embeddings.dim()[-1] == self.word_dim
+
+        embeddings = self.dropout(embeddings)
         embeddings = embeddings.permute(0, 2, 1) # [batch, dims, seqlen]
 
 
