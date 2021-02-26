@@ -1,1 +1,1 @@
-nohup python train.py > train_results_1.log 2>&1 &
+nohup python train.py > ./result/train_results_3.log 2>&1 &

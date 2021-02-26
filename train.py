@@ -384,12 +384,15 @@ if __name__ == '__main__':
                             cur_dir_models + f'/epoch{epoch}')
 
             logging(f'epoch {epoch} Staring perturb')
-            attack_acc, attack_num_acc, attack_avg_times = perturb(
-                test_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
-                cur_dir + f'/epoch{epoch}_perturb',
-                baseline_model_builder.vocab)
+            # attach_acc: [search_time, sample_num]
+            attack_acc = perturb(test_data, Seq2Seq_model, gan_gen, gan_adv,
+                                 baseline_model,
+                                 cur_dir + f'/epoch{epoch}_perturb',
+                                 baseline_model_builder.vocab)
             log = ''
-            log += f'attact success acc: {attack_acc}\n\n'
-            for i in range(AttackConfig.perturb_sample_num):
-                log += f'sample {i} attact success acc:{attack_num_acc[i]}\n'
-            logging(log + f'\navg attack try times:{attack_avg_times}')
+            for j in range(AttackConfig.perturb_search_times):
+                log += f'search_times {j} attact success acc'
+                for i in range(AttackConfig.perturb_sample_num):
+                    log += f'{attack_acc[j][i]}' + '\t' * 2
+                log += '\n'
+            logging(log)

@@ -8,7 +8,7 @@ config_path = './config.py'
 class AttackConfig():
     output_dir = r'./output'
     train_multi_cuda = False
-    cuda_idx = 1
+    cuda_idx = 3
     if train_multi_cuda:
         multi_cuda_idx = [0, 1, 2, 3]
         cuda_idx = multi_cuda_idx[0]
@@ -47,9 +47,10 @@ class AttackConfig():
     gan_adv_train_times = 1
     gan_gen_train_limit = 7
 
-    perturb_sample_num = 20
-    perturb_search_times = 1
+    perturb_sample_num = 10
+    perturb_search_times = 10
     perturb_search_bound = 0.005
+    perturb_mul = 2
 
 
 class BaselineConfig():
