@@ -44,13 +44,13 @@ class AttackConfig():
     gan_schedule = [1, 3, 5]
     seq2seq_train_times = 1
     gan_gen_train_times = 1
-    gan_adv_train_times = 1
-    gan_gen_train_limit = 7
+    gan_adv_train_times = 5
+    gan_gen_train_limit = epochs
 
     perturb_sample_num = 10
     perturb_search_times = 10
-    perturb_search_bound = 0.005
-    perturb_mul = 2
+    perturb_search_bound = 0.16
+    perturb_mul = 1.16
 
 
 class BaselineConfig():
