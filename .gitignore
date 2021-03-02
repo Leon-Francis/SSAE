@@ -8,3 +8,5 @@ output/
 *.out
 baseline_models/
 static/
+texts/
+result/
