@@ -8,15 +8,15 @@ config_path = './config.py'
 class AttackConfig():
     output_dir = r'./output'
     train_multi_cuda = False
-    cuda_idx = 3
+    cuda_idx = 0
     if train_multi_cuda:
         multi_cuda_idx = [0, 1, 2, 3]
         cuda_idx = multi_cuda_idx[0]
     train_device = torch.device('cuda:' + str(cuda_idx))
-    dataset = 'AGNEWS'  # choices = 'IMDB', 'AGNEWS', 'SNLI'
-    baseline_model = 'LSTM'  # choices = 'LSTM', 'TextCNN', 'BidLSTM', 'Bert'
+    dataset = 'SNLI'  # choices = 'IMDB', 'AGNEWS', 'SNLI'
+    baseline_model = 'BidLSTM_E'  # choices = 'LSTM', 'TextCNN', 'BidLSTM', 'Bert'
     debug_mode = False
-    epochs = 60
+    epochs = 30
     batch_size = 128
 
     load_pretrained_Seq2Seq = True
@@ -26,6 +26,10 @@ class AttackConfig():
     if load_pretrained_Seq2Seq:
         if dataset == 'AGNEWS':
             pretrained_Seq2Seq_path = r'./output/seq2seq_model/AGNEWS/1611484301/Seq2Seq_model.pt'
+        if dataset == 'IMDB':
+            pretrained_Seq2Seq_path = r'./output/seq2seq_model/IMDB/1614672817/Seq2Seq_model.pt'
+        if dataset == 'SNLI':
+            pretrained_Seq2Seq_path = r'./output/seq2seq_model/SNLI/1614966994/Seq2Seq_model.pt'
 
     if fine_tuning:
         Seq2Seq_learning_rate_BERT = 5e-6

@@ -126,8 +126,11 @@ class IMDB_Dataset(Dataset):
             self.path = IMDBConfig.train_data_path
         else:
             self.path = IMDBConfig.test_data_path
+        self.attack_vocab = attack_vocab
         self.datas, self.classification_label = self.read_standard_data(
             self.path, debug_mode)
+        if attack_vocab:
+            self.baseline_tokenizer = baseline_Tokenizer()
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
         self.sen_len = IMDBConfig.sen_len
         self.data_tokens = []
@@ -175,8 +178,12 @@ class IMDB_Dataset(Dataset):
         for sen in self.datas:
             data_tokens = ['[CLS]']
             data_tokens += self.tokenizer.tokenize(sen)[:self.sen_len - 1]
-            label_tokens = self.tokenizer.tokenize(sen)[:self.sen_len - 1]
-            label_tokens += ['[SEP]']
+            if self.attack_vocab:
+                label_tokens = self.baseline_tokenizer(sen)[:self.sen_len - 1]
+                label_tokens += ['[SEP]']
+            else:
+                label_tokens = self.tokenizer.tokenize(sen)[:self.sen_len - 1]
+                label_tokens += ['[SEP]']
             self.data_tokens.append(data_tokens)
             self.label_tokens.append(label_tokens)
 
@@ -186,17 +193,25 @@ class IMDB_Dataset(Dataset):
             self.data_idx.append(self.tokenizer.convert_tokens_to_ids(tokens))
             self.data_mask.append([1] * len(tokens))
 
-        for tokens in self.label_tokens:
-            self.label_idx.append(self.tokenizer.convert_tokens_to_ids(tokens))
+        if self.attack_vocab:
+            for tokens in self.label_tokens:
+                self.label_idx.append(
+                    [self.attack_vocab.get_index(token) for token in tokens])
+        else:
+            for tokens in self.label_tokens:
+                self.label_idx.append(
+                    self.tokenizer.convert_tokens_to_ids(tokens))
 
         for i in range(len(self.data_idx)):
             if len(self.data_idx[i]) < self.sen_len:
                 self.data_idx[i] += [0
                                      ] * (self.sen_len - len(self.data_idx[i]))
-                self.label_idx[i] += [0] * (self.sen_len -
-                                            len(self.label_idx[i]))
                 self.data_mask[i] += [0] * (self.sen_len -
                                             len(self.data_mask[i]))
+
+            if len(self.label_idx[i]) < self.sen_len:
+                self.label_idx[i] += [0] * (self.sen_len -
+                                            len(self.label_idx[i]))
 
     def transfor(self):
         self.data_idx = torch.tensor(self.data_idx)
@@ -215,14 +230,13 @@ class IMDB_Dataset(Dataset):
 class SNLI_Dataset(Dataset):
     """
     premise_data_idx = seq of premise,
-    premise_data_mask = mask of seq_premise,
+    premise_data_mask = mask of premise,
+    premise_data_len = len of seq_premise,
     premise_label_idx = seq_premise + 1,
     hypothesis_data_idx = seq of hypothesis,
-    hypothesis_data_mask = mask of seq_hypothesis,
+    hypothesis_data_mask = mask of hypothesis,
+    hypothesis_data_len = len of seq_hypothesis,
     hypothesis_label_idx = seq_hypothesis + 1,
-    whole_sen = premise_idx + hypothesis_idx
-    whole_mask = premise_mask + hypothesis_mask
-    whole_type = 0(premise_sen) + 1(hypothesis_sen)
     classification_label
     """
     def __init__(self, train_data=True, attack_vocab=None, debug_mode=False):
@@ -232,10 +246,13 @@ class SNLI_Dataset(Dataset):
         else:
             self.path = SNLIConfig.test_data_path
         self.sentences_path = SNLIConfig.sentences_data_path
+        self.attack_vocab = attack_vocab
         self.sentences = self.read_standard_sentences(self.sentences_path)
         self.premise_data, self.hypothesis_data, self.classification_label = self.read_standard_data(
             self.path, self.sentences, debug_mode)
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        if attack_vocab:
+            self.baseline_tokenizer = baseline_Tokenizer()
         self.sen_len = SNLIConfig.sen_len
         self.premise_data_tokens = []
         self.hypothesis_data_tokens = []
@@ -244,12 +261,11 @@ class SNLI_Dataset(Dataset):
         self.premise_data_idx = []
         self.premise_label_idx = []
         self.premise_data_mask = []
+        self.premise_data_len = []
         self.hypothesis_data_idx = []
         self.hypothesis_label_idx = []
         self.hypothesis_data_mask = []
-        self.whole_sen = []
-        self.whole_mask = []
-        self.whole_type = []
+        self.hypothesis_data_len = []
         self.data2tokens()
         self.token2idx()
         self.transfor()
@@ -294,16 +310,25 @@ class SNLI_Dataset(Dataset):
         for sen in self.premise_data:
             data_tokens = ['[CLS]']
             data_tokens += self.tokenizer.tokenize(sen)[:self.sen_len - 1]
-            label_tokens = self.tokenizer.tokenize(sen)[:self.sen_len - 1]
-            label_tokens += ['[SEP]']
+            if self.attack_vocab:
+                label_tokens = self.baseline_tokenizer(sen)[:self.sen_len - 1]
+                label_tokens += ['[SEP]']
+            else:
+                label_tokens = self.tokenizer.tokenize(sen)[:self.sen_len - 1]
+                label_tokens += ['[SEP]']
+
             self.premise_data_tokens.append(data_tokens)
             self.premise_label_tokens.append(label_tokens)
 
         for sen in self.hypothesis_data:
             data_tokens = ['[CLS]']
             data_tokens += self.tokenizer.tokenize(sen)[:self.sen_len - 1]
-            label_tokens = self.tokenizer.tokenize(sen)[:self.sen_len - 1]
-            label_tokens += ['[SEP]']
+            if self.attack_vocab:
+                label_tokens = self.baseline_tokenizer(sen)[:self.sen_len - 1]
+                label_tokens += ['[SEP]']
+            else:
+                label_tokens = self.tokenizer.tokenize(sen)[:self.sen_len - 1]
+                label_tokens += ['[SEP]']
             self.hypothesis_data_tokens.append(data_tokens)
             self.hypothesis_label_tokens.append(label_tokens)
 
@@ -312,66 +337,79 @@ class SNLI_Dataset(Dataset):
         for tokens in self.premise_data_tokens:
             self.premise_data_idx.append(
                 self.tokenizer.convert_tokens_to_ids(tokens))
+            self.premise_data_len.append(len(tokens))
             self.premise_data_mask.append([1] * len(tokens))
 
-        for tokens in self.premise_label_tokens:
-            self.premise_label_idx.append(
-                self.tokenizer.convert_tokens_to_ids(tokens))
+        if self.attack_vocab:
+            for tokens in self.premise_label_tokens:
+                self.premise_label_idx.append(
+                    [self.attack_vocab.get_index(token) for token in tokens])
+        else:
+            for tokens in self.premise_label_tokens:
+                self.premise_label_idx.append(
+                    self.tokenizer.convert_tokens_to_ids(tokens))
 
         for i in range(len(self.premise_data_idx)):
             if len(self.premise_data_idx[i]) < self.sen_len:
                 self.premise_data_idx[i] += [0] * (
                     self.sen_len - len(self.premise_data_idx[i]))
-                self.premise_label_idx[i] += [0] * (
-                    self.sen_len - len(self.premise_label_idx[i]))
                 self.premise_data_mask[i] += [0] * (
                     self.sen_len - len(self.premise_data_mask[i]))
+
+            if len(self.premise_label_idx[i]) < self.sen_len:
+                self.premise_label_idx[i] += [0] * (
+                    self.sen_len - len(self.premise_label_idx[i]))
 
         for tokens in self.hypothesis_data_tokens:
             self.hypothesis_data_idx.append(
                 self.tokenizer.convert_tokens_to_ids(tokens))
+            self.hypothesis_data_len.append(len(tokens))
             self.hypothesis_data_mask.append([1] * len(tokens))
 
-        for tokens in self.hypothesis_label_tokens:
-            self.hypothesis_label_idx.append(
-                self.tokenizer.convert_tokens_to_ids(tokens))
+        if self.attack_vocab:
+            for tokens in self.hypothesis_label_tokens:
+                self.hypothesis_label_idx.append(
+                    [self.attack_vocab.get_index(token) for token in tokens])
+        else:
+            for tokens in self.hypothesis_label_tokens:
+                self.hypothesis_label_idx.append(
+                    self.tokenizer.convert_tokens_to_ids(tokens))
 
         for i in range(len(self.hypothesis_data_idx)):
             if len(self.hypothesis_data_idx[i]) < self.sen_len:
                 self.hypothesis_data_idx[i] += [0] * (
                     self.sen_len - len(self.hypothesis_data_idx[i]))
-                self.hypothesis_label_idx[i] += [0] * (
-                    self.sen_len - len(self.hypothesis_label_idx[i]))
                 self.hypothesis_data_mask[i] += [0] * (
                     self.sen_len - len(self.hypothesis_data_mask[i]))
 
-        for i in range(len(self.premise_data_idx)):
-            self.whole_sen.append(self.premise_data_idx[i] +
-                                  self.hypothesis_data_idx[i])
-            self.whole_mask.append(self.premise_data_mask[i] +
-                                   self.hypothesis_data_mask[i])
-            self.whole_type.append([0] * len(self.premise_data_idx[i]) +
-                                   [1] * len(self.hypothesis_data_idx[i]))
+            if len(self.hypothesis_label_idx[i]) < self.sen_len:
+                self.hypothesis_label_idx[i] += [0] * (
+                    self.sen_len - len(self.hypothesis_label_idx[i]))
 
     def transfor(self):
         self.premise_data_idx = torch.tensor(self.premise_data_idx)
         self.premise_data_mask = torch.tensor(self.premise_data_mask)
+        self.premise_data_len = torch.tensor(self.premise_data_len)
         self.premise_label_idx = torch.tensor(self.premise_label_idx)
         self.hypothesis_data_idx = torch.tensor(self.hypothesis_data_idx)
         self.hypothesis_data_mask = torch.tensor(self.hypothesis_data_mask)
+        self.hypothesis_data_len = torch.tensor(self.hypothesis_data_len)
         self.hypothesis_label_idx = torch.tensor(self.hypothesis_label_idx)
-        self.whole_sen = torch.tensor(self.whole_sen)
-        self.whole_mask = torch.tensor(self.whole_mask)
-        self.whole_type = torch.tensor(self.whole_type)
         self.classification_label = torch.tensor(self.classification_label)
 
     def __getitem__(self, item):
         return self.premise_data_idx[item], self.premise_data_mask[
-            item], self.premise_label_idx[item], self.hypothesis_data_idx[
-                item], self.hypothesis_data_mask[
-                    item], self.hypothesis_label_idx[item], self.whole_sen[
-                        item], self.whole_mask[item], self.whole_type[
-                            item], self.classification_label[item]
+            item], self.premise_data_len[item], self.premise_label_idx[
+                item], self.hypothesis_data_idx[
+                    item], self.hypothesis_data_mask[
+                        item], self.hypothesis_data_len[
+                            item], self.hypothesis_label_idx[
+                                item], self.classification_label[item]
 
     def __len__(self):
         return len(self.premise_data)
+
+
+if __name__ == '__main__':
+    train_dataset_orig = SNLI_Dataset(train_data=True)
+    test_dataset_orig = SNLI_Dataset(train_data=False)

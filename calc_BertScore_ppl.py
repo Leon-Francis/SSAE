@@ -4,6 +4,7 @@ from collections import defaultdict
 from bert_score.utils import lang2model, model2layers, bert_cos_score_idf
 from transformers import AutoModel, AutoTokenizer
 import numpy as np
+import math
 
 device = torch.device('cuda:3')
 
@@ -65,15 +66,15 @@ def get_ppl(enc, model, cands):
 
             loss = model(batch, lm_labels=batch)  # everage -logp
 
-            ppls.append(loss.item())  # the small, the better
+            ppls.append(math.exp(loss.item()))  # the small, the better
     return ppls
 
 
 def calc_bert_score_ppl(cands_dir, refs_dir):
     with open(cands_dir, encoding='utf8') as f:
-        cands = [line.strip()[:-1] for line in f]
+        cands = [line.strip() for line in f]
     with open(refs_dir, encoding='utf8') as f:
-        refs = [line.strip()[:-1] for line in f]
+        refs = [line.strip() for line in f]
     ppl_enc, ppl_model = pre_ppl()
     ppl = get_ppl(ppl_enc, ppl_model, cands)
     bs_model, bs_tokenizer, bs_idf_dict = pre_bertscore()
@@ -82,12 +83,12 @@ def calc_bert_score_ppl(cands_dir, refs_dir):
 
 
 if __name__ == '__main__':
-    with open('./texts/LSTM__03-25-10%3A38_adv.txt', encoding='utf8') as f:
+    with open('./texts/PWWS/AGNEWS/LSTM/cands.txt', encoding='utf8') as f:
         cands = [line.strip()[:-1] for line in f]
-    with open('./texts/agnews_clean_1k.txt', encoding='utf8') as f:
+    with open('./texts/PWWS/AGNEWS/LSTM/refs.txt', encoding='utf8') as f:
         refs = [line.strip()[:-1] for line in f]
     ppl_enc, ppl_model = pre_ppl()
-    ppl = get_ppl(ppl_enc, ppl_model, cands)
+    ppl = get_ppl(ppl_enc, ppl_model, refs)
     print(np.mean(ppl))
     bs_model, bs_tokenizer, bs_idf_dict = pre_bertscore()
     P, R, F = get_bertscore(bs_model, bs_tokenizer, bs_idf_dict, refs, cands)
