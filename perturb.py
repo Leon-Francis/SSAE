@@ -15,23 +15,26 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir,
         attack_succeeded_idx_num = torch.zeros(
             AttackConfig.perturb_search_times, AttackConfig.perturb_sample_num)
         with open(dir, "a") as f:
-            for x, x_mask, y, label in data:
-                x, x_mask, y, label = x.to(
-                    AttackConfig.train_device), x_mask.to(
+            for x, x_mask, x_len, x_label, y, y_mask, y_len, y_label, label in data:
+                x, x_mask, x_len, x_label, y, y_mask, y_len, y_label, label = x.to(
+                    AttackConfig.train_device
+                ), x_mask.to(AttackConfig.train_device), x_len.to(
+                    AttackConfig.train_device), x_label.to(
                         AttackConfig.train_device), y.to(
-                            AttackConfig.train_device), label.to(
-                                AttackConfig.train_device)
+                            AttackConfig.train_device), y_mask.to(
+                                AttackConfig.train_device), y_len.to(
+                                    AttackConfig.train_device), y_label.to(
+                                        AttackConfig.train_device), label.to(
+                                            AttackConfig.train_device)
                 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
                 # c: [batch, sen_len, hidden_size]
                 c = Seq2Seq_model(x, x_mask, is_noise=False, encode_only=True)
                 # z: [batch, seq_len, super_hidden_size]
                 z = gan_adv(c)
 
-                if AttackConfig.baseline_model == 'Bert':
-                    skiped = label != baseline_model(y, x_mask).argmax(dim=1)
-                else:
-                    skiped = label != baseline_model(y).argmax(dim=1)
-                for i in range(len(y)):
+                skiped = label != baseline_model(
+                    ((x_label, x_len), (y_label, y_len))).argmax(dim=1)
+                for i in range(len(x_label)):
                     if skiped[i].item():
                         continue
 
@@ -51,6 +54,9 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir,
                             baseline_model,
                             label[i],
                             z[i],
+                            x_len[i],
+                            y_label[i],
+                            y_len[i],
                             samples_num=AttackConfig.perturb_sample_num,
                             search_bound=search_bound,
                             presearch_result=presearch_result)
@@ -62,7 +68,8 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir,
                             f.write(f'search_bound = {search_bound}\n')
                             f.write('Orginal sentence: \n')
                             f.write(' '.join([
-                                attack_vocab.get_word(token) for token in y[i]
+                                attack_vocab.get_word(token)
+                                for token in x_label[i]
                             ]) + "\n" * 2)
 
                             f.write('\nAll attack samples as follows: \n')
@@ -88,7 +95,7 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir,
                             f.write(f'search_bound = {search_bound}\n')
                             f.write('Orginal sentence: \n')
                             f.write(' '.join(
-                                tokenizer.convert_ids_to_tokens(y[i])) +
+                                tokenizer.convert_ids_to_tokens(x_label[i])) +
                                     "\n" * 2)
 
                             f.write('\nAll attack samples as follows: \n')
@@ -110,8 +117,8 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir,
     return attack_succeeded_idx_num / attack_num
 
 
-def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
-                samples_num, search_bound, presearch_result):
+def search_fast(Seq2Seq_model, generator, baseline_model, label, z, x_len,
+                y_label, y_len, samples_num, search_bound, presearch_result):
     # z: [sen_len, super_hidden_size]
     Seq2Seq_model.eval()
     generator.eval()
@@ -120,6 +127,10 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
 
         # search_z: [samples_num, sen_len, super_hidden_size]
         search_z = z.repeat(samples_num, 1, 1)
+        x_len = x_len.repeat(samples_num)
+        y_label = y_label.repeat(samples_num, 1)
+        y_len = y_len.repeat(samples_num)
+
         delta = torch.FloatTensor(search_z.size()).uniform_(
             -1 * search_bound, search_bound)
 
@@ -142,7 +153,8 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
             perturb_label = baseline_model(perturb_x,
                                            perturb_x_mask).argmax(dim=1)
         else:
-            perturb_label = baseline_model(perturb_x).argmax(dim=1)
+            perturb_label = baseline_model(
+                ((perturb_x, x_len), (y_label, y_len))).argmax(dim=1)
 
         successed_mask = perturb_label != label
         for i in range(len(presearch_result)):

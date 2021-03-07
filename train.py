@@ -15,14 +15,12 @@ from baseline_module.baseline_model_builder import BaselineModelBuilder
 
 def train_Seq2Seq(train_data, model, criterion, optimizer, total_loss):
     model.train()
-    x, x_mask, y, _ = train_data
-    x, x_mask, y = x.to(AttackConfig.train_device), x_mask.to(
-        AttackConfig.train_device), y.to(AttackConfig.train_device)
+    x, x_mask, _, x_label, _, _, _, _, _ = train_data
     logits = model(x, x_mask, is_noise=False)
     model.zero_grad()
     logits = logits.reshape(-1, logits.shape[-1])
-    y = y.reshape(-1)
-    loss = criterion(logits, y)
+    x_label = x_label.reshape(-1)
+    loss = criterion(logits, x_label)
     loss.backward()
     optimizer.step()
 
@@ -39,7 +37,7 @@ def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
     optimizer_gan_a.zero_grad()
     optimizer_gan_g.zero_grad()
 
-    x, x_mask, y, label = train_data
+    x, x_mask, x_len, _, _, _, y_len, y_label, label = train_data
     # perturb_x: [batch, sen_len]
     perturb_x = Seq2Seq_model(x,
                               x_mask,
@@ -60,7 +58,7 @@ def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
         # perturb_logits: [batch, 4]
         perturb_logits = baseline_model(perturb_x, perturb_x_mask)
     else:
-        perturb_logits = baseline_model(perturb_x)
+        perturb_logits = baseline_model(((perturb_x, x_len), (y_label, y_len)))
 
     loss = criterion_ce(perturb_logits, label)
     loss *= -5
@@ -78,7 +76,7 @@ def train_gan_g(train_data, Seq2Seq_model, gan_gen, gan_adv, criterion_mse,
     optimizer_gan_a.zero_grad()
     optimizer_gan_g.zero_grad()
 
-    x, x_mask, y, _ = train_data
+    x, x_mask, _, x_label, _, _, _, _, _ = train_data
     # real_hidden: [batch, sen_len, hidden]
     real_hidden = Seq2Seq_model(x, x_mask, is_noise=False, encode_only=True)
     fake_hidden = gan_gen(gan_adv(real_hidden))
@@ -102,9 +100,10 @@ def evaluate_gan(test_data, Seq2Seq_model, gan_gen, gan_adv, dir,
     logging(f'Saving evaluate of gan outputs into {dir}')
     with torch.no_grad():
 
-        for x, x_mask, y, _ in test_data:
-            x, x_mask, y = x.to(AttackConfig.train_device), x_mask.to(
-                AttackConfig.train_device), y.to(AttackConfig.train_device)
+        for x, x_mask, _, x_label, _, _, _, _, _ in test_data:
+            x, x_mask, x_label = x.to(AttackConfig.train_device), x_mask.to(
+                AttackConfig.train_device), x_label.to(
+                    AttackConfig.train_device)
 
             # sentence -> encoder -> decoder
             Seq2Seq_outputs = Seq2Seq_model(x, x_mask, is_noise=False)
@@ -123,11 +122,12 @@ def evaluate_gan(test_data, Seq2Seq_model, gan_gen, gan_adv, dir,
 
             if attack_vocab:
                 with open(dir, 'a') as f:
-                    for i in range(len(y)):
+                    for i in range(len(x_label)):
                         f.write('------orginal sentence---------\n')
-                        f.write(' '.join(
-                            [attack_vocab.get_word(token)
-                             for token in y[i]]) + '\n')
+                        f.write(' '.join([
+                            attack_vocab.get_word(token)
+                            for token in x_label[i]
+                        ]) + '\n')
                         f.write('------setence -> encoder -> decoder-------\n')
                         f.write(' '.join([
                             attack_vocab.get_word(token)
@@ -142,11 +142,11 @@ def evaluate_gan(test_data, Seq2Seq_model, gan_gen, gan_adv, dir,
                         ]) + '\n' * 2)
             else:
                 with open(dir, 'a') as f:
-                    for i in range(len(y)):
+                    for i in range(len(x_label)):
                         f.write('------orginal sentence---------\n')
-                        f.write(
-                            ' '.join(tokenizer.convert_ids_to_tokens(y[i])) +
-                            '\n')
+                        f.write(' '.join(
+                            tokenizer.convert_ids_to_tokens(x_label[i])) +
+                                '\n')
                         f.write('------setence -> encoder -> decoder-------\n')
                         f.write(' '.join(
                             tokenizer.convert_ids_to_tokens(Seq2Seq_idx[i])) +
@@ -166,22 +166,24 @@ def evaluate_Seq2Seq(test_data, Seq2Seq_model, dir, attack_vocab):
     with torch.no_grad():
         acc_sum = 0
         n = 0
-        for x, x_mask, y, _ in test_data:
-            x, x_mask, y = x.to(AttackConfig.train_device), x_mask.to(
-                AttackConfig.train_device), y.to(AttackConfig.train_device)
+        for x, x_mask, _, x_label, _, _, _, _, _ in test_data:
+            x, x_mask, x_label = x.to(AttackConfig.train_device), x_mask.to(
+                AttackConfig.train_device), x_label.to(
+                    AttackConfig.train_device)
             logits = Seq2Seq_model(x, x_mask, is_noise=False)
             # outputs_idx: [batch, sen_len]
             outputs_idx = logits.argmax(dim=2)
-            acc_sum += (outputs_idx == y).float().sum().item()
-            n += y.shape[0] * y.shape[1]
+            acc_sum += (outputs_idx == x_label).float().sum().item()
+            n += x_label.shape[0] * x_label.shape[1]
 
             if attack_vocab:
                 with open(dir, 'a') as f:
-                    for i in range(len(y)):
+                    for i in range(len(x_label)):
                         f.write('-------orginal sentence----------\n')
-                        f.write(' '.join(
-                            [attack_vocab.get_word(token)
-                             for token in y[i]]) + '\n')
+                        f.write(' '.join([
+                            attack_vocab.get_word(token)
+                            for token in x_label[i]
+                        ]) + '\n')
                         f.write(
                             '-------sentence -> encoder -> decoder----------\n'
                         )
@@ -191,11 +193,11 @@ def evaluate_Seq2Seq(test_data, Seq2Seq_model, dir, attack_vocab):
                         ]) + '\n' * 2)
             else:
                 with open(dir, 'a') as f:
-                    for i in range(len(y)):
+                    for i in range(len(x_label)):
                         f.write('-------orginal sentence----------\n')
-                        f.write(
-                            ' '.join(tokenizer.convert_ids_to_tokens(y[i])) +
-                            '\n')
+                        f.write(' '.join(
+                            tokenizer.convert_ids_to_tokens(x_label[i])) +
+                                '\n')
                         f.write(
                             '-------sentence -> encoder -> decoder----------\n'
                         )
@@ -324,36 +326,45 @@ if __name__ == '__main__':
         total_loss_gan_a = 0
         total_loss_gan_g = 0
         logging(f'Training {epoch} epoch')
-        for x, x_mask, y, label in train_data:
+        for x, x_mask, x_len, x_label, y, y_mask, y_len, y_label, label in train_data:
             niter += 1
-            x, x_mask, y, label = x.to(AttackConfig.train_device), x_mask.to(
-                AttackConfig.train_device), y.to(
-                    AttackConfig.train_device), label.to(
-                        AttackConfig.train_device)
+            x, x_mask, x_len, x_label, y, y_mask, y_len, y_label, label = x.to(
+                AttackConfig.train_device
+            ), x_mask.to(AttackConfig.train_device), x_len.to(
+                AttackConfig.train_device), x_label.to(
+                    AttackConfig.train_device), y.to(
+                        AttackConfig.train_device), y_mask.to(
+                            AttackConfig.train_device), y_len.to(
+                                AttackConfig.train_device), y_label.to(
+                                    AttackConfig.train_device), label.to(
+                                        AttackConfig.train_device)
 
             if not AttackConfig.load_pretrained_Seq2Seq:
                 for i in range(AttackConfig.seq2seq_train_times):
                     total_loss_Seq2Seq += train_Seq2Seq(
-                        (x, x_mask, y, label), Seq2Seq_model, criterion_ce,
+                        (x, x_mask, x_len, x_label, y, y_mask, y_len, y_label,
+                         label), Seq2Seq_model, criterion_ce,
                         optimizer_Seq2Seq, total_loss_Seq2Seq)
             else:
                 if AttackConfig.fine_tuning:
                     for i in range(AttackConfig.seq2seq_train_times):
                         total_loss_Seq2Seq += train_Seq2Seq(
-                            (x, x_mask, y, label), Seq2Seq_model, criterion_ce,
+                            (x, x_mask, x_len, x_label, y, y_mask, y_len,
+                             y_label, label), Seq2Seq_model, criterion_ce,
                             optimizer_Seq2Seq, total_loss_Seq2Seq)
 
             for k in range(niter_gan):
                 if epoch < AttackConfig.gan_gen_train_limit:
                     for i in range(AttackConfig.gan_gen_train_times):
                         total_loss_gan_g += train_gan_g(
-                            (x, x_mask, y, label), Seq2Seq_model, gan_gen,
-                            gan_adv, criterion_mse, optimizer_gan_g,
-                            optimizer_gan_a)
+                            (x, x_mask, x_len, x_label, y, y_mask, y_len,
+                             y_label, label), Seq2Seq_model, gan_gen, gan_adv,
+                            criterion_mse, optimizer_gan_g, optimizer_gan_a)
 
                 for i in range(AttackConfig.gan_adv_train_times):
                     total_loss_gan_a += train_gan_a(
-                        (x, x_mask, y, label), Seq2Seq_model, gan_gen, gan_adv,
+                        (x, x_mask, x_len, x_label, y, y_mask, y_len, y_label,
+                         label), Seq2Seq_model, gan_gen, gan_adv,
                         baseline_model, optimizer_gan_g, optimizer_gan_a,
                         criterion_ce)
 
