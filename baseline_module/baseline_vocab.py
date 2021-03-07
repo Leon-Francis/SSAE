@@ -1,15 +1,16 @@
 import numpy as np
-
-from baseline_tools import logging
+import re
+import os
+from baseline_tools import *
 
 
 class baseline_Vocab():
 
-    def __init__(self, origin_data_tokens, word_dim:int=100, vocab_limit_size=80000, is_special=False,
+    def __init__(self, origin_data_tokens, vocab_limit_size=80000, is_special=False,
                  is_using_pretrained=True, word_vec_file_path=r'./static/glove.6B.100d.txt'):
         assert len(origin_data_tokens) > 0
         self.file_path = word_vec_file_path
-        self.word_dim = word_dim
+        self.word_dim = int(re.findall("\d+d", word_vec_file_path)[0][:-1])
         self.word_dict = {}
         self.word_count = {}
         self.vectors = None
@@ -71,23 +72,29 @@ class baseline_Vocab():
         num = 0
         word_dict = {}
         word_dict[self.special_word_unk[0]] = num  # unknown word
-        if self.is_special:
-            word_dict[self.special_word_cls[0]] = 1
-            word_dict[self.special_word_sep[0]] = 2
-            num += 2
-        with open(self.file_path, 'r', encoding='utf-8') as file:
-            file = file.readlines()
-            vectors = np.ndarray([len(file) + 1 + num, self.word_dim], dtype='float32')
-            vectors[0] = np.random.normal(0.0, 0.3, [self.word_dim])  # unk
-            if self.is_special:
-                vectors[1] = np.random.normal(0.0, 0.3, [self.word_dim])
-                vectors[2] = np.random.normal(0.0, 0.3, [self.word_dim])
-            for line in file:
-                line = line.split()
-                num += 1
-                word_dict[line[0]] = num
-                vectors[num] = np.asarray(line[-self.word_dim:], dtype='float32')
 
+        temp = self.file_path + '.pkl'
+        if os.path.exists(temp):
+            word_dict, vectors = load_pkl_obj(temp)
+        else:
+            if self.is_special:
+                word_dict[self.special_word_cls[0]] = 1
+                word_dict[self.special_word_sep[0]] = 2
+                num += 2
+            with open(self.file_path, 'r', encoding='utf-8') as file:
+                file = file.readlines()
+                vectors = np.ndarray([len(file) + 1 + num, self.word_dim], dtype='float32')
+                vectors[0] = np.random.normal(0.0, 0.3, [self.word_dim])  # unk
+                if self.is_special:
+                    vectors[1] = np.random.normal(0.0, 0.3, [self.word_dim])
+                    vectors[2] = np.random.normal(0.0, 0.3, [self.word_dim])
+                for line in file:
+                    line = line.split()
+                    num += 1
+                    word_dict[line[0]] = num
+                    vectors[num] = np.asarray(line[-self.word_dim:], dtype='float32')
+
+            save_pkl_obj((word_dict, vectors), temp)
 
         for word, idx in self.word_dict.items():
             if word in word_dict:
@@ -111,8 +118,7 @@ class baseline_Vocab():
 
 
     def get_index(self, word: str):
-        word = word.lower()
-        if self.word_dict.get(word) is None:
+        if word not in self.word_dict:
             return 0  # unknown word
         return self.word_dict[word]
 

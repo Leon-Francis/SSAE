@@ -2,6 +2,7 @@ import csv
 import os
 import pickle
 from datetime import datetime
+from baseline_config import baseline_debug_mode
 
 # if os.path.exists('./baseline_module'):
 #     os.chdir('./baseline_module')
@@ -28,14 +29,17 @@ def get_time()->str:
     return str(datetime.now().strftime("%m_%d-%H-%M"))
 
 def parse_bool(v):
-    return 'y' in v
+    return 'y' in v.lower()
 
 def read_standard_data(path):
     data = []
     labels = []
+    limit = -1
+    if baseline_debug_mode:
+        limit = 5000
     with open(path, 'r', encoding='utf-8') as file:
         for i, line in enumerate(file):
-            # if i == 500: break
+            if i == limit: break
             line = line.strip('\n')
             data.append(line[:-1])
             labels.append(int(line[-1]))
@@ -85,22 +89,23 @@ def read_SNLI_origin_data(sentence_path, data_path):
     with open(sentence_path, 'r') as file:
         for line in file:
             sentences.append(line[1:].strip())
-
+    limit = -1
+    if baseline_debug_mode:
+        limit = 5000
     premise = []
     hypothesis = []
     labels =  []
     with open(data_path, 'r') as file:
         for i, line in enumerate(file):
-            # if i == 500: break
+            if i == limit: break
             temp = line.strip().split()
             labels.append(label_classes[temp[0]])
             premise.append(sentences[int(temp[1])])
             hypothesis.append(sentences[int(temp[2])])
-
     return premise, hypothesis, labels
 
 if __name__ == '__main__':
     sentence_path = '/home/jsjlab/projects/AttackViaGan/dataset/SNLI/sentences.txt'
-    data_path = '/home/jsjlab/projects/AttackViaGan/dataset/SNLI/test.txt'
+    data_path = '/home/jsjlab/projects/AttackViaGan/dataset/SNLI/train.txt'
 
     read_SNLI_origin_data(sentence_path, data_path)

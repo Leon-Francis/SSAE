@@ -1,11 +1,11 @@
 import random
 import re
-
+import spacy
+from spacy.lang.en import English
 import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from transformers import BertTokenizer
-
 from baseline_config import baseline_config_dataset, baseline_BertConfig
 from baseline_tools import logging, read_standard_data, read_SNLI_origin_data
 
@@ -25,18 +25,25 @@ class baseline_Tokenizer():
     def normal_token(self, text: str)->[str]:
         return [tok for tok in text.split() if not tok.isspace()]
 
-
     def __call__(self, text: str)->[str]:
         text = self.pre_process(text)
         words = self.normal_token(text)
         return words
 
+class spacy_Tokenizer():
+    def __init__(self):
+        nlp = English()
+        self.tokenizer = nlp.tokenizer
+
+    def __call__(self, text:str)->[str]:
+        return [t.text for t in self.tokenizer(text)]
 
 class baseline_MyDataset(Dataset):
     def __init__(self, dataset_name, data_path, using_bert=False, is_to_tokens=True):
         self.dataset_name = dataset_name
         self.dataset_path = data_path
-        self.labels_num = baseline_config_dataset[dataset_name].labels_num
+        self.dataset_config = baseline_config_dataset[dataset_name]
+        self.labels_num = self.dataset_config.labels_num
         if dataset_name == 'SNLI':
             self.premise_data, self.hypothesis_data, self.labels = read_SNLI_origin_data(
                 baseline_config_dataset[dataset_name].sentences_path, data_path
@@ -48,7 +55,9 @@ class baseline_MyDataset(Dataset):
             }
             self.data_tensor = {
                 'pre': [],
+                'pre_len': [],
                 'hypo': [],
+                'hypo_len': [],
                 'comb': [],
             }
         else:
@@ -62,8 +71,12 @@ class baseline_MyDataset(Dataset):
             self.tokenizer = BertTokenizer.from_pretrained(baseline_BertConfig.model_name)
             self.data_types = []
             self.data_masks = []
-        else:
+        elif self.dataset_config.tokenizer_type == 'normal':
             self.tokenizer = baseline_Tokenizer()
+        elif self.dataset_config.tokenizer_type == 'spacy':
+            self.tokenizer = spacy_Tokenizer()
+        else:
+            raise KeyError(f'tokenizer {self.dataset_config.tokenizer_type} not supported')
         self.maxlen = None
 
         if is_to_tokens:
@@ -94,8 +107,12 @@ class baseline_MyDataset(Dataset):
             if self.dataset_name == 'SNLI':
                 assert len(self.data_token['pre']) == len(self.data_token['hypo']) == len(self.labels)
                 for tokens in self.data_token['pre']:
+                    s_len = min(len(tokens), maxlen)
+                    self.data_tensor['pre_len'].append(torch.tensor(s_len, dtype=torch.long))
                     self.data_tensor['pre'].append(self.__encode_tokens(tokens))
                 for tokens in self.data_token['hypo']:
+                    s_len = min(len(tokens), maxlen)
+                    self.data_tensor['hypo_len'].append(torch.tensor(s_len, dtype=torch.long))
                     self.data_tensor['hypo'].append(self.__encode_tokens(tokens))
             else:
                 for tokens in self.data_token:
@@ -144,7 +161,8 @@ class baseline_MyDataset(Dataset):
             return (self.data_tensor[item], self.data_types[item], self.data_masks[item],
                     self.labels_tensor[item])
         if self.dataset_name == 'SNLI':
-            return (self.data_tensor['pre'][item], self.data_tensor['hypo'][item], self.labels_tensor[item])
+            return ((self.data_tensor['pre'][item], self.data_tensor['pre_len'][item]),
+                    (self.data_tensor['hypo'][item], self.data_tensor['hypo_len'][item]), self.labels_tensor[item])
         return (self.data_tensor[item], self.labels_tensor[item])
 
 

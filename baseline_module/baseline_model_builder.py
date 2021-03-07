@@ -9,7 +9,7 @@ from baseline_config import baseline_config_dataset, baseline_LSTMConfig, baseli
 from baseline_config import baseline_config_model_load_path
 from baseline_data import baseline_MyDataset
 from baseline_nets import baseline_LSTM, baseline_TextCNN, baseline_Bert, \
-    baseline_LSTM_Entailment, baseline_TextCNN_Entailment
+    baseline_BidLSTM_entailment, baseline_TextCNN_Entailment
 from baseline_tools import logging
 from baseline_vocab import baseline_Vocab
 
@@ -119,11 +119,14 @@ class BaselineModelBuilder():
         word_dim = baseline_LSTMConfig.word_dim[self.dataset_name]
         is_head_and_tail = baseline_LSTMConfig.is_head_and_tail[self.dataset_name]
         if is_entailment:
-            net = baseline_LSTM_Entailment(num_hiddens=num_hiddens, num_layers=num_layers,
-                                           word_dim=word_dim, bid=is_bid,
-                                           head_tail=is_head_and_tail, vocab=self.vocab,
-                                           labels_num=self.dataset_config.labels_num,
-                                           using_pretrained=is_using_pretrained)
+            assert is_bid
+            linear_size = baseline_LSTMConfig.linear_size[self.dataset_name]
+            dropout_rate = baseline_LSTMConfig.dropout_rate[self.dataset_name]
+            pool_type = baseline_LSTMConfig.pool_type[self.dataset_name]
+            net = baseline_BidLSTM_entailment(word_dim=word_dim, vocab=self.vocab, lstm_hidden=num_hiddens,
+                                              num_layer=num_layers, labels_num=self.dataset_config.labels_num,
+                                              dropout_rate=dropout_rate, using_pretrained=True,
+                                              linear_size=linear_size, pool_type=pool_type)
         else:
             net = baseline_LSTM(num_hiddens=num_hiddens, num_layers=num_layers, word_dim=word_dim, bid=is_bid,
                                 head_tail=is_head_and_tail, vocab=self.vocab, labels_num=self.dataset_config.labels_num,

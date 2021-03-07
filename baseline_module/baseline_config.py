@@ -1,14 +1,15 @@
 # configuration of baseline models (classification)
 import random
-from baseline_tools import logging
 import numpy as np
 import torch
 
 absolute_path_prefix = r'/home/jsjlab/projects/AttackViaGan'
 
+baseline_debug_mode = False
+
 
 def setup_seed(seed):
-    logging(f'setup seed {seed}')
+    print(f'setup seed {seed}')
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
@@ -34,7 +35,7 @@ baseline_config_model_load_path = {
     },
     'SNLI': {
         'LSTM_E': absolute_path_prefix+r'/baseline_module/baseline_models/SNLI/LSTM_E_0.74338_01_29-23-40_.pt',
-        'BidLSTM_E': absolute_path_prefix+r'/baseline_module/baseline_models/SNLI/BidLSTM_E_0.75214_01_30-15-30_.pt',
+        'BidLSTM_E': absolute_path_prefix+r'/baseline_module/baseline_models/SNLI/BidLSTM_E_0.77769_03_05-21-53_.pt',
         'TextCNN_E': absolute_path_prefix+r'/baseline_module/baseline_models/SNLI/TextCNN_E_0.74287_01_29-14-46_.pt',
         'Bert_E': absolute_path_prefix+r'/baseline_module/baseline_models/SNLI/Bert.pt',
     }
@@ -47,7 +48,6 @@ class baseline_IMDBConfig():
     labels_num = 2
     vocab_limit_size = 40000
     tokenizer_type = 'normal'
-    remove_stop_words = False
     padding_maxlen = 230
 
 class baseline_AGNEWSConfig():
@@ -57,19 +57,17 @@ class baseline_AGNEWSConfig():
     labels_num = 4
     vocab_limit_size = 80000
     tokenizer_type = 'normal'
-    remove_stop_words = False
     padding_maxlen = 50
 
 class baseline_SNLIConfig():
     train_data_path = absolute_path_prefix+r'/dataset/SNLI/train.txt'
     test_data_path = absolute_path_prefix+r'/dataset/SNLI/test.txt'
     sentences_path = absolute_path_prefix+r'/dataset/SNLI/sentences.txt'
-    pretrained_word_vectors_path = absolute_path_prefix+r'/static/glove.6B.100d.txt'
+    pretrained_word_vectors_path = absolute_path_prefix+r'/static/glove.840B.300d.txt'
     labels_num = 3
-    vocab_limit_size = 30000
-    tokenizer_type = 'normal'
-    remove_stop_words = False
-    padding_maxlen = 10
+    vocab_limit_size = 50000
+    tokenizer_type = 'spacy'
+    padding_maxlen = 15
 
 class baseline_TextCNNConfig():
     channel_kernel_size = {
@@ -104,7 +102,7 @@ class baseline_LSTMConfig():
     num_hiddens = {
         'IMDB': 128,
         'AGNEWS': 100,
-        'SNLI': 256,
+        'SNLI': 300,
     }
 
     num_layers = {
@@ -116,7 +114,7 @@ class baseline_LSTMConfig():
     is_using_pretrained = {
         'IMDB': False,
         'AGNEWS': True,
-        'SNLI': False,
+        'SNLI': True,
     }
 
     word_dim = {
@@ -129,6 +127,18 @@ class baseline_LSTMConfig():
         'IMDB': False,
         'AGNEWS': True,
         'SNLI': True
+    }
+
+    linear_size = {
+        'SNLI': 200,
+    }
+
+    dropout_rate = {
+        'SNLI': 0.4,
+    }
+
+    pool_type = {
+        'SNLI': 'max',
     }
 
 

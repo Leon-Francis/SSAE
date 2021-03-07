@@ -2,7 +2,7 @@ import argparse
 import copy
 import os
 import re
-
+import time
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -26,12 +26,17 @@ parser.add_argument('--load_model', choices=[True, False], default='no', type=pa
 parser.add_argument('--cuda', type=str, default='3')
 parser.add_argument('--skip_loss', type=float, default=0.15)
 parser.add_argument('--only_evaluate', type=parse_bool, default='no')
+parser.add_argument('--scratch', type=parse_bool, default='no')
 args = parser.parse_args()
+
+if baseline_debug_mode:
+    logging('the debug mode is on!!!')
+    time.sleep(1)
 
 
 dataset_name = args.dataset
 dataset_config = baseline_config_dataset[dataset_name]
-batch = args.batch
+batch = args.batch if not baseline_debug_mode else 4
 lr = args.lr
 note = args.note
 is_load_model = args.load_model
@@ -47,7 +52,7 @@ if dataset_name == 'SNLI':
 
 # prepare dataset
 temp_path = f'./baseline_models/traindata_{dataset_name}_{model_name}.pkl'
-if os.path.exists(temp_path):
+if os.path.exists(temp_path) and not args.scratch and not baseline_debug_mode:
     train_dataset = load_pkl_obj(temp_path)
 else:
     train_dataset = baseline_MyDataset(dataset_name, dataset_config.train_data_path, using_bert)
@@ -64,20 +69,27 @@ else:
                                vocab_limit_size=dataset_config.vocab_limit_size,
                                word_vec_file_path=dataset_config.pretrained_word_vectors_path)
     train_dataset.token2seq(vocab, dataset_config.padding_maxlen)
-    save_pkl_obj(train_dataset, temp_path)
+    logging(f'the train dataset size is {len(train_dataset)}')
+
+    if not baseline_debug_mode:
+        save_pkl_obj(train_dataset, temp_path)
 
 vocab = train_dataset.vocab
 
 temp_path = f'./baseline_models/testdata_{dataset_name}_{model_name}.pkl'
-if os.path.exists(temp_path):
+if os.path.exists(temp_path) and not args.scratch and not baseline_debug_mode:
     test_dataset = load_pkl_obj(temp_path)
 else:
     test_dataset = baseline_MyDataset(dataset_name, dataset_config.test_data_path, using_bert)
     test_dataset.token2seq(vocab, dataset_config.padding_maxlen)
-    save_pkl_obj(test_dataset, temp_path)
+    logging(f'the test dataset size is {len(test_dataset)}')
+    if not baseline_debug_mode:
+        save_pkl_obj(test_dataset, temp_path)
 
 # ----------------------------------------------
 model = BaselineModelBuilder(dataset_name, model_name, device, is_load_model, vocab=train_dataset.vocab)
+
+
 
 train_dataset = DataLoader(train_dataset, batch_size=batch, shuffle=True)
 test_dataset = DataLoader(test_dataset, batch_size=batch)
@@ -90,12 +102,12 @@ if using_bert:
         [
             {'params': model.net.bert_model.parameters(), 'lr': 1e-5},
             {'params': model.net.fc.parameters(), 'lr': lr}
-        ], lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.25
+        ], lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.1
     )
 else:
-    optimizer = optim.AdamW(model.net.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.15)
-    # optimizer = optim.Adam(model.net.parameters(), lr=lr, weight_decay=0.05)
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.96, patience=3,
+    optimizer = optim.AdamW(model.net.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.2)
+    # optimizer = optim.Adam(model.net.parameters(), lr=lr, )
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.9, patience=3,
                                                      verbose=True, min_lr=3e-8)
 warmup_scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda ep: 1e-2 if ep < 4 else 1.0)
 
@@ -111,7 +123,10 @@ def train():
             if using_bert:
                 x, types, masks = temp[0].to(device), temp[1].to(device), temp[2].to(device)
             elif dataset_name == 'SNLI':
-                x = (temp[0].to(device), temp[1].to(device))
+                x = (
+                    (temp[0][0].to(device), temp[0][1].to(device)),
+                    (temp[1][0].to(device), temp[1][1].to(device))
+                )
                 types = masks = None
             else:
                 x = temp[0].to(device)
@@ -142,7 +157,10 @@ def evaluate():
             if using_bert:
                 x, types, masks = temp[0].to(device), temp[1].to(device), temp[2].to(device)
             elif dataset_name == 'SNLI':
-                x = (temp[0].to(device), temp[1].to(device))
+                x = (
+                    (temp[0][0].to(device), temp[0][1].to(device)),
+                    (temp[1][0].to(device), temp[1][1].to(device))
+                )
                 types = masks = None
             else:
                 x = temp[0].to(device)

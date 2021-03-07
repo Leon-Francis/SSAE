@@ -4,6 +4,7 @@ from torch.nn import functional as F
 from transformers import BertModel
 import os
 import sys
+import numpy as np
 current_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(current_dir)
 from baseline_config import baseline_BertConfig
@@ -21,8 +22,6 @@ class baseline_LSTM(nn.Module):
             self.model_name = 'LSTM'
         self.head_tail = head_tail
         self.bid = bid
-
-        self.vec = torch.from_numpy(vocab.vectors)
 
         self.embedding_layer = nn.Embedding(vocab.num, word_dim)
         self.embedding_layer.weight.requires_grad = True
@@ -71,10 +70,8 @@ class baseline_LSTM(nn.Module):
         return outputs
 
     def forward_with_embedding(self, embeddings: torch.Tensor):
-        # [batch, seq, vovab_size]
-        self.vec = self.vec.to(embeddings.device)
-        embeddings = torch.matmul(embeddings, self.vec)
-        embeddings = embeddings.permute(1, 0, 2)
+        # [batch, seq, embeddings]
+        embeddings = embeddings.permute(1, 0)
         X = self.dropout(embeddings)
 
         outputs, _ = self.encoder(X) # output, (hidden, memory)
@@ -190,41 +187,6 @@ class baseline_Bert(nn.Module):
         logits = self.fc(pooled)
         return logits
 
-class baseline_LSTM_encoder(nn.Module):
-
-    def __init__(self,
-                 num_hiddens:int, num_layers:int, word_dim:int, bid=False, head_tail=False):
-        super(baseline_LSTM_encoder, self).__init__()
-        self.head_tail = head_tail
-        self.bid = bid
-        self.dropout = nn.Dropout(0.5)
-        self.encoder = nn.LSTM(
-            input_size=word_dim, hidden_size=num_hiddens,
-            num_layers=num_layers, bidirectional=bid,
-            dropout=0.3
-        )
-
-        # using bidrectional, *2
-        if bid:
-            num_hiddens *= 2
-        if head_tail:
-            num_hiddens *= 2
-        self.num_hiddens = num_hiddens
-
-
-
-
-    def forward(self, embeddings: torch.Tensor):
-
-
-        outputs, _ = self.encoder(embeddings) # output, (hidden, memory)
-        # outputs [seq_len, batch, hidden*2] *2 means using bidrectional
-        # head and tail, [batch, hidden*4]
-
-        outputs = torch.cat((outputs[0], outputs[-1]), -1) if self.head_tail else outputs[-1]
-
-        return outputs
-
 class baseline_TextCNN_encoder(nn.Module):
     def __init__(self, word_dim, num_channels:list, kernel_sizes:list, is_batch_normal:bool):
         super(baseline_TextCNN_encoder, self).__init__()
@@ -261,67 +223,6 @@ class baseline_TextCNN_encoder(nn.Module):
 
 
         return outs
-
-class baseline_LSTM_Entailment(nn.Module):
-    def __init__(self, num_hiddens:int, num_layers:int, word_dim:int, vocab:'Vocab', labels_num:int,
-                 using_pretrained=True, bid=False, head_tail=False):
-        super(baseline_LSTM_Entailment, self).__init__()
-
-        if bid:
-            self.model_name = 'BidLSTM_E'
-        else:
-            self.model_name = 'LSTM_E'
-
-        self.embedding_layer = nn.Embedding(vocab.num, word_dim)
-        self.embedding_layer.weight.requires_grad = True
-        if using_pretrained:
-            assert vocab.word_dim == word_dim
-            assert vocab.num == vocab.vectors.shape[0]
-            self.embedding_layer.from_pretrained(torch.from_numpy(vocab.vectors))
-            self.embedding_layer.weight.requires_grad = False
-        self.dropout = nn.Dropout(0.5)
-
-        self.premise_encoder = baseline_LSTM_encoder(num_hiddens, num_layers, word_dim, bid, head_tail)
-        self.hypothesis_encoder = baseline_LSTM_encoder(num_hiddens, num_layers, word_dim, bid, head_tail)
-
-
-        all_hiddens_size = self.premise_encoder.num_hiddens+self.hypothesis_encoder.num_hiddens
-
-
-        layer_size = [all_hiddens_size, 300, 300]
-        self.layers = nn.Sequential(nn.Dropout(0.5))
-
-
-        for i in range(len(layer_size)-1):
-            self.layers.add_module(
-                'linear'+str(i), nn.Linear(layer_size[i], layer_size[i+1]),
-            )
-            self.layers.add_module(
-                'relu', nn.ReLU(),
-            )
-            self.layers.add_module(
-                'bn'+str(i), nn.BatchNorm1d(layer_size[i+1])
-            )
-
-        self.layers.add_module(
-            'fc', nn.Linear(layer_size[-1], labels_num)
-        )
-
-
-
-    def forward(self, x:tuple, types=None, masks=None):
-        x_pre, x_hypo = x[0], x[1]
-        x_pre, x_hypo = x_pre.permute(1, 0), x_hypo.permute(1, 0)
-
-        embeddings_pre = self.dropout(self.embedding_layer(x_pre))
-        embeddings_hypo = self.dropout(self.embedding_layer(x_hypo))
-
-        outs_pre = self.premise_encoder(embeddings_pre)
-        outs_hypo = self.hypothesis_encoder(embeddings_hypo)
-
-        outs = torch.cat([outs_pre, outs_hypo], dim=1)
-
-        return self.layers(outs)
 
 class baseline_TextCNN_Entailment(nn.Module):
     def __init__(self, vocab:'Vocab', train_embedding_word_dim, is_static, using_pretrained,
@@ -375,6 +276,124 @@ class baseline_TextCNN_Entailment(nn.Module):
 
         return logits
 
+class repr_base_class:
+    def __repr__(self):
+        base_place =  '-'
+        head = type(self).__name__
+        info = head + 40 * base_place + '\n'
+        # print(dir(self))
+        for attr in dir(self):
+            if not callable(attr) and not attr.startswith("__") and attr != 'get_config_dict':
+                temp = f'{attr}: {self.__getattribute__(attr)}'
+                base_place_pos = len(head) + 40 - len(temp) - 1
+                temp = temp + base_place_pos * ' ' + '|'
+                info = info + temp + '\n'
+
+        info += (len(head) + 40) * base_place
+        info += '\n'
+        return info
+
+class baseline_Infnet(nn.Module, repr_base_class):
+
+    def __init__(self, word_dim, lstm_hidden, num_layer, dropout_rate=0.25, pool_type='max'):
+        super(baseline_Infnet, self).__init__()
+        self.word_emb_dim = word_dim
+        self.enc_lstm_dim = lstm_hidden
+        self.pool_type = pool_type
+
+
+        self.enc_lstm = nn.LSTM(self.word_emb_dim, self.enc_lstm_dim, num_layer,
+                                bidirectional=True, dropout=dropout_rate)
+
+
+    def forward(self, sent:torch.Tensor, sent_len:torch.Tensor):
+        sort = torch.sort(sent_len, descending=True)
+        sent_len_sort, idx_sort = sort.values, sort.indices
+        idx_reverse = torch.argsort(idx_sort)
+
+        sent = sent.index_select(1, idx_sort)
+
+        sent_packed = nn.utils.rnn.pack_padded_sequence(sent, sent_len_sort)
+        outs, _ = self.enc_lstm(sent_packed)
+        outs, _ = nn.utils.rnn.pad_packed_sequence(outs)
+
+        outs = outs.index_select(1, idx_reverse)
+
+        if self.pool_type == 'mean':
+            sent_len = sent_len.clone().type(torch.float).unsqueeze(1)
+            emb = torch.sum(outs, 0).squeeze(0)
+            emb = emb / sent_len.expand_as(emb)
+            return emb
+        elif self.pool_type == 'max':
+            emb = torch.max(outs, 0).values
+            return emb
+        else:
+            return outs[-1]
+
+
+class baseline_BidLSTM_entailment(nn.Module):
+    def __init__(self, vocab:'Vocab', word_dim, lstm_hidden, num_layer, labels_num, linear_size, dropout_rate=0.25,
+                 using_pretrained=True, pool_type='max'):
+        super(baseline_BidLSTM_entailment, self).__init__()
+        self.model_name = 'BidLSTM_E'
+
+        dropout_rate = 0.0 if num_layer == 1 else dropout_rate
+
+        self.embedding = nn.Embedding(vocab.num, vocab.word_dim)
+        self.embedding.weight.requires_grad = True
+
+        if using_pretrained:
+            assert vocab.word_dim == word_dim
+            self.embedding.from_pretrained(torch.from_numpy(vocab.vectors))
+            self.embedding.weight.requires_grad = False
+
+        self.encoder = baseline_Infnet(word_dim, lstm_hidden, num_layer, dropout_rate=dropout_rate,
+                                       pool_type=pool_type)
+
+        self.inputdim = lstm_hidden * 2 * 4
+
+        self.relu = nn.LeakyReLU()
+
+
+        self.fc = nn.Sequential(
+            nn.Dropout(dropout_rate),
+            nn.Linear(self.inputdim, linear_size),
+            nn.Tanh(),
+            nn.Dropout(dropout_rate),
+            nn.Linear(linear_size, linear_size),
+            nn.Tanh(),
+            nn.Dropout(dropout_rate),
+            nn.Linear(linear_size, labels_num),
+        )
+
+    def forward(self, x:tuple, types=None, masks=None):
+        # ((x1, x1_len), (x2, x2_len))
+        batch_size = x[0][0].size()[0]
+
+        temp = self.embedding(x[0][0].permute(1, 0))
+        u = self.encoder(temp, x[0][1]).reshape(batch_size, -1)
+
+        temp = self.embedding(x[1][0].permute(1, 0))
+        v = self.encoder(temp, x[1][1]).reshape(batch_size, -1)
+
+        features = torch.cat((u, v, torch.abs(u-v), u*v), 1)
+        outs = self.fc(features)
+
+        return outs
+
+
 
 if __name__ == '__main__':
-    pass
+    maxlen = 10
+    batch_size = 4
+    word_dim = 300
+    num_hidden = 200
+
+
+    sentence = torch.randn(maxlen, batch_size, word_dim)
+    sentence_len = torch.randint(1, maxlen, size=[batch_size])
+
+    net = baseline_Infnet(word_dim, num_hidden, num_layer=2)
+    out = net(sentence, sentence_len)
+
+    print(net)
