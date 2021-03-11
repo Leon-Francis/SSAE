@@ -8,19 +8,19 @@ config_path = './config.py'
 class AttackConfig():
     output_dir = r'./output'
     train_multi_cuda = False
-    cuda_idx = 2
+    cuda_idx = 1
     if train_multi_cuda:
         multi_cuda_idx = [0, 1, 2, 3]
         cuda_idx = multi_cuda_idx[0]
     train_device = torch.device('cuda:' + str(cuda_idx))
-    dataset = 'SNLI'  # choices = 'IMDB', 'AGNEWS', 'SNLI'
-    baseline_model = 'BidLSTM_E'  # choices = 'LSTM', 'TextCNN', 'BidLSTM', 'Bert'
+    dataset = 'IMDB'  # choices = 'IMDB', 'AGNEWS', 'SNLI'
+    baseline_model = 'LSTM'  # choices = 'LSTM', 'TextCNN', 'BidLSTM', 'Bert'
     debug_mode = False
-    epochs = 30
+    epochs = 120
     batch_size = 128
 
     load_pretrained_Seq2Seq = True
-    Seq2Seq_BidLSTM = True
+    Seq2Seq_BidLSTM = False
     head_tail = False
     fine_tuning = False
 
