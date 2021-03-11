@@ -8,7 +8,7 @@ config_path = './config.py'
 class AttackConfig():
     output_dir = r'./output'
     train_multi_cuda = False
-    cuda_idx = 0
+    cuda_idx = 2
     if train_multi_cuda:
         multi_cuda_idx = [0, 1, 2, 3]
         cuda_idx = multi_cuda_idx[0]
@@ -20,6 +20,7 @@ class AttackConfig():
     batch_size = 128
 
     load_pretrained_Seq2Seq = True
+    Seq2Seq_BidLSTM = True
     head_tail = False
     fine_tuning = False
 
@@ -29,8 +30,10 @@ class AttackConfig():
         if dataset == 'IMDB':
             pretrained_Seq2Seq_path = r'./output/seq2seq_model/IMDB/1614672817/Seq2Seq_model.pt'
         if dataset == 'SNLI':
-            pretrained_Seq2Seq_path = r'./output/seq2seq_model/SNLI/1614966994/Seq2Seq_model.pt'
-
+            if not Seq2Seq_BidLSTM:
+                pretrained_Seq2Seq_path = r'./output/seq2seq_model/SNLI/1615217103/Seq2Seq_model.pt'
+            else:
+                pretrained_Seq2Seq_path = r'./output/seq2seq_model/SNLI/1615217989/Seq2Seq_model.pt'
     if fine_tuning:
         Seq2Seq_learning_rate_BERT = 5e-6
         Seq2Seq_learning_rate_LSTM = 1e-4
@@ -96,7 +99,7 @@ class SNLIConfig():
     label_classes = {'neutral': 0, 'contradiction': 1, 'entailment': 2}
     tokenizer_type = 'bert'
     remove_stop_words = False
-    sen_len = 10
+    sen_len = 15
     vocab_size = bert_vocab_size
 
 

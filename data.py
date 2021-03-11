@@ -40,7 +40,7 @@ class AGNEWS_Dataset(Dataset):
         data = []
         labels = []
         if debug_mode:
-            i = 320
+            i = 1000
             with open(path, 'r', encoding='utf-8') as file:
                 for line in file:
                     i -= 1
@@ -155,7 +155,7 @@ class IMDB_Dataset(Dataset):
         datas = []
         labels = []
         if debug_mode:
-            i = 320
+            i = 1000
             for p in path_list:
                 label = 0 if 'neg' in p else 1
                 with open(p, 'r', encoding='utf-8') as file:
@@ -284,7 +284,7 @@ class SNLI_Dataset(Dataset):
         hypothesis_data = []
         labels = []
         if debug_mode:
-            i = 320
+            i = 1000
             with open(path, 'r', encoding='utf-8') as file:
                 for line in file:
                     tokens = line.strip().split('\t')
