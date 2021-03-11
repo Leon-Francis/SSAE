@@ -275,8 +275,10 @@ if __name__ == '__main__':
 
     # init models
     logging('init models, optimizer, criterion...')
-    Seq2Seq_model = Seq2Seq_bert(baseline_model_builder.vocab.num).to(
-        AttackConfig.train_device)
+    Seq2Seq_model = Seq2Seq_bert(
+        baseline_model_builder.vocab.num,
+        bidirectional=AttackConfig.Seq2Seq_BidLSTM).to(
+            AttackConfig.train_device)
     if AttackConfig.load_pretrained_Seq2Seq:
         Seq2Seq_model.load_state_dict(
             torch.load(AttackConfig.pretrained_Seq2Seq_path,
