@@ -51,7 +51,8 @@ if dataset_name == 'SNLI':
     assert model_name[-1] == 'E'
 
 # prepare dataset
-temp_path = f'./baseline_models/traindata_{dataset_name}_{model_name}.pkl'
+temp_path = f'./baseline_models/traindata_{dataset_name}_{model_name}_vocab{dataset_config.vocab_limit_size}_' \
+            f'maxlen{dataset_config.padding_maxlen}.pkl'
 if os.path.exists(temp_path) and not args.scratch and not baseline_debug_mode:
     train_dataset = load_pkl_obj(temp_path)
 else:
@@ -76,7 +77,8 @@ else:
 
 vocab = train_dataset.vocab
 
-temp_path = f'./baseline_models/testdata_{dataset_name}_{model_name}.pkl'
+temp_path = f'./baseline_models/testdata_{dataset_name}_{model_name}_vocab{dataset_config.vocab_limit_size}_' \
+            f'maxlen{dataset_config.padding_maxlen}.pkl'
 if os.path.exists(temp_path) and not args.scratch and not baseline_debug_mode:
     test_dataset = load_pkl_obj(temp_path)
 else:

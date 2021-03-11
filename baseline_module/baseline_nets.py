@@ -276,24 +276,7 @@ class baseline_TextCNN_Entailment(nn.Module):
 
         return logits
 
-class repr_base_class:
-    def __repr__(self):
-        base_place =  '-'
-        head = type(self).__name__
-        info = head + 40 * base_place + '\n'
-        # print(dir(self))
-        for attr in dir(self):
-            if not callable(attr) and not attr.startswith("__") and attr != 'get_config_dict':
-                temp = f'{attr}: {self.__getattribute__(attr)}'
-                base_place_pos = len(head) + 40 - len(temp) - 1
-                temp = temp + base_place_pos * ' ' + '|'
-                info = info + temp + '\n'
-
-        info += (len(head) + 40) * base_place
-        info += '\n'
-        return info
-
-class baseline_Infnet(nn.Module, repr_base_class):
+class baseline_Infnet(nn.Module):
 
     def __init__(self, word_dim, lstm_hidden, num_layer, dropout_rate=0.25, pool_type='max'):
         super(baseline_Infnet, self).__init__()
@@ -395,5 +378,3 @@ if __name__ == '__main__':
 
     net = baseline_Infnet(word_dim, num_hidden, num_layer=2)
     out = net(sentence, sentence_len)
-
-    print(net)

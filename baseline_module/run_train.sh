@@ -11,10 +11,10 @@ log="train_${dataset}_${model}_$(date +'%m_%d+%H+%M+%S').log"
 
 nohup \
 python -u baseline_train.py \
---scratch no \
+--scratch yes \
 --dataset ${dataset} \
 --model ${model} \
---epoch 20 \
+--epoch 30 \
 --batch 128 \
 --lr 1e-3 \
 --load_model no \

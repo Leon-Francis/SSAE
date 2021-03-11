@@ -12,12 +12,14 @@ class Seq2Seq_bert(nn.Module):
                  hidden_size=AttackConfig.hidden_size,
                  num_layers=AttackConfig.num_layers,
                  dropout=AttackConfig.dropout,
+                 bidirectional=False,
                  noise_std=0.2):
         super(Seq2Seq_bert, self).__init__()
         self.dropout = dropout
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.noise_std = noise_std
+        self.bidirectional = bidirectional
         self.encoder = BertModel.from_pretrained('bert-base-uncased',
                                                  output_hidden_states=True)
         if not AttackConfig.fine_tuning:
@@ -29,10 +31,14 @@ class Seq2Seq_bert(nn.Module):
         self.decoder = nn.LSTM(input_size=decoder_input_size,
                                hidden_size=self.hidden_size,
                                num_layers=self.num_layers,
+                               bidirectional=self.bidirectional,
                                dropout=self.dropout)
-        self.fc = nn.Sequential(
-            nn.Dropout(0.5),
-            nn.Linear(self.hidden_size, vocab_size))
+        if bidirectional:
+            self.fc = nn.Sequential(nn.Dropout(0.5),
+                                    nn.Linear(self.hidden_size * 2, vocab_size))
+        else:
+            self.fc = nn.Sequential(
+                nn.Dropout(0.5), nn.Linear(self.hidden_size, vocab_size))
 
     def encode(self, inputs, inputs_mask, is_noise=False):
         """bert_based_encode
@@ -182,10 +188,15 @@ class LSTM_G(nn.Module):
                             dropout=self.dropout,
                             bidirectional=self.bidirectional,
                             batch_first=True)
+        self.linear = None
+        if self.bidirectional:
+            self.linear = nn.Linear(self.hidden_size * 2, self.hidden_size)
 
     def forward(self, inputs):
         # input: [batch_size, sen_len, super_hidden_size]
         out, self.hidden = self.lstm(inputs)
+        if self.bidirectional:
+            out = self.linear(out)
         return out
 
 
@@ -208,10 +219,15 @@ class LSTM_A(nn.Module):
                             dropout=self.dropout,
                             bidirectional=self.bidirectional,
                             batch_first=True)
+        self.linear = None
+        if self.bidirectional:
+            self.linear = nn.Linear(self.hidden_size * 2, self.hidden_size)
 
     def forward(self, inputs):
         # input: [batch_size, sen_len, hidden_size]
         out, self.hidden = self.lstm(inputs)
+        if self.bidirectional:
+            out = self.linear(out)
         return out
 
 
