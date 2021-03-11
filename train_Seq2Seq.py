@@ -22,14 +22,15 @@ def train_Seq2Seq(train_data, test_data, model, criterion, optimizer, cur_dir,
         model.train()
         loss_mean = 0.0
         n = 0
-        for x, x_mask, y, _ in train_data:
-            x, x_mask, y = x.to(AttackConfig.train_device), x_mask.to(
-                AttackConfig.train_device), y.to(AttackConfig.train_device)
+        for x, x_mask, _, x_label, _, _, _, _, _ in train_data:
+            x, x_mask, x_label = x.to(AttackConfig.train_device), x_mask.to(
+                AttackConfig.train_device), x_label.to(
+                    AttackConfig.train_device)
             model.zero_grad()
             logits = model(x, x_mask, is_noise=False)
             logits = logits.reshape(-1, logits.shape[-1])
-            y = y.reshape(-1)
-            loss = criterion(logits, y)
+            x_label = x_label.reshape(-1)
+            loss = criterion(logits, x_label)
             loss_mean += loss.item()
             loss.backward()
             optimizer.step()
@@ -52,21 +53,23 @@ def evaluate_Seq2Seq(test_data, Seq2Seq_model, path, attack_vocab):
     with torch.no_grad():
         acc_sum = 0
         n = 0
-        for x, x_mask, y, _ in test_data:
-            x, x_mask, y = x.to(AttackConfig.train_device), x_mask.to(
-                AttackConfig.train_device), y.to(AttackConfig.train_device)
+        for x, x_mask, _, x_label, _, _, _, _, _ in test_data:
+            x, x_mask, x_label = x.to(AttackConfig.train_device), x_mask.to(
+                AttackConfig.train_device), x_label.to(
+                    AttackConfig.train_device)
             logits = Seq2Seq_model(x, x_mask, is_noise=False)
             # outputs_idx: [batch, sen_len]
             outputs_idx = logits.argmax(dim=2)
-            acc_sum += (outputs_idx == y).float().sum().item()
-            n += y.shape[0] * y.shape[1]
+            acc_sum += (outputs_idx == x_label).float().sum().item()
+            n += x_label.shape[0] * x_label.shape[1]
             if attack_vocab:
                 with open(path, 'a') as f:
-                    for i in range(len(y)):
+                    for i in range(len(x_label)):
                         f.write('-------orginal sentence----------\n')
-                        f.write(' '.join(
-                            [attack_vocab.get_word(token)
-                             for token in y[i]]) + '\n')
+                        f.write(' '.join([
+                            attack_vocab.get_word(token)
+                            for token in x_label[i]
+                        ]) + '\n')
                         f.write(
                             '-------sentence -> encoder -> decoder----------\n'
                         )
@@ -76,11 +79,11 @@ def evaluate_Seq2Seq(test_data, Seq2Seq_model, path, attack_vocab):
                         ]) + '\n' * 2)
             else:
                 with open(path, 'a') as f:
-                    for i in range(len(y)):
+                    for i in range(len(x_label)):
                         f.write('-------orginal sentence----------\n')
-                        f.write(
-                            ' '.join(tokenizer.convert_ids_to_tokens(y[i])) +
-                            '\n')
+                        f.write(' '.join(
+                            tokenizer.convert_ids_to_tokens(x_label[i])) +
+                                '\n')
                         f.write(
                             '-------sentence -> encoder -> decoder----------\n'
                         )
@@ -144,7 +147,7 @@ if __name__ == '__main__':
     save_config(cur_dir)
 
     baseline_model_builder = BaselineModelBuilder(AttackConfig.dataset,
-                                                  'LSTM',
+                                                  AttackConfig.baseline_model,
                                                   AttackConfig.train_device,
                                                   is_load=True)
 

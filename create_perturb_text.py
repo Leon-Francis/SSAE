@@ -1,9 +1,10 @@
 from transformers import BertTokenizer
 from model import Seq2Seq_bert, LSTM_G, LSTM_A
 from baseline_module.baseline_model_builder import BaselineModelBuilder
-from train import build_dataset
-from config import AttackConfig
+from data import AGNEWS_Dataset, IMDB_Dataset, SNLI_Dataset
+from torch.utils.data import DataLoader
 from calc_BertScore_ppl import calc_bert_score_ppl
+from config import AttackConfig
 from tools import logging
 import torch
 import os
@@ -20,20 +21,22 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, cands_dir,
         attack_num = 0
         attack_success_num = 0
         with open(cands_dir, "w") as f, open(refs_dir, "w") as f_1:
-            for x, x_mask, y, label in data:
-                x, x_mask, y, label = x.to(train_device), x_mask.to(
-                    train_device), y.to(train_device), label.to(train_device)
+            for x, x_mask, x_len, x_label, y, y_mask, y_len, y_label, label in data:
+                x, x_mask, x_len, x_label, y, y_mask, y_len, y_label, label = x.to(
+                    train_device), x_mask.to(train_device), x_len.to(
+                        train_device), x_label.to(train_device), y.to(
+                            train_device), y_mask.to(train_device), y_len.to(
+                                train_device), y_label.to(
+                                    train_device), label.to(train_device)
                 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
                 # c: [batch, sen_len, hidden_size]
                 c = Seq2Seq_model(x, x_mask, is_noise=False, encode_only=True)
                 # z: [batch, seq_len, super_hidden_size]
                 z = gan_adv(c)
 
-                if baseline_model == 'Bert':
-                    skiped = label != baseline_model(y, x_mask).argmax(dim=1)
-                else:
-                    skiped = label != baseline_model(y).argmax(dim=1)
-                for i in range(len(y)):
+                skiped = label != baseline_model(
+                    ((x_label, x_len), (y_label, y_len))).argmax(dim=1)
+                for i in range(len(x_label)):
                     if skiped[i].item():
                         continue
 
@@ -46,22 +49,27 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, cands_dir,
                         baseline_model,
                         label[i],
                         z[i],
+                        x_len[i],
+                        y_label[i],
+                        y_len[i],
                         samples_num=samples_num,
                         search_bound=search_bound,
                         presearch_result=presearch_result)
 
                     if attack_vocab:
-                        for stop in range(len(y[i]), 0, -1):
-                            if y[i][stop - 1].item() != 0:
+                        for stop in range(len(x_label[i]), 0, -1):
+                            if x_label[i][stop - 1].item() != 0 and x_label[i][
+                                    stop - 1].item() != 2:
                                 break
                         f_1.write(' '.join([
                             attack_vocab.get_word(token)
-                            for token in y[i][:stop]
+                            for token in x_label[i][:stop]
                         ]) + "\n")
 
                         if not presearch_result[-1]:
                             for stop in range(len(perturb_x[0]), 0, -1):
-                                if perturb_x[0][stop - 1].item() != 0:
+                                if perturb_x[0][stop - 1].item(
+                                ) != 0 and perturb_x[0][stop - 1].item() != 2:
                                     break
                             f.write(' '.join([
                                 attack_vocab.get_word(token)
@@ -73,8 +81,9 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, cands_dir,
                                 if presearch_result[n]:
                                     for stop in range(len(perturb_x_sample), 0,
                                                       -1):
-                                        if perturb_x_sample[stop -
-                                                            1].item() != 0:
+                                        if perturb_x_sample[stop - 1].item(
+                                        ) != 0 and perturb_x_sample[
+                                                stop - 1].item() != 2:
                                             break
                                     f.write(' '.join([
                                         attack_vocab.get_word(token)
@@ -85,16 +94,18 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, cands_dir,
                                     break
 
                     else:
-                        for stop in range(len(y[i]), 0, -1):
-                            if y[i][stop - 1].item() != 0:
+                        for stop in range(len(x_label[i]), 0, -1):
+                            if x_label[i][stop - 1].item() != 0 and x_label[i][
+                                    stop - 1].item() != 2:
                                 break
                         f_1.write(' '.join(
-                            tokenizer.convert_ids_to_tokens(y[i][:stop])) +
-                                  "\n")
+                            tokenizer.convert_ids_to_tokens(x_label[i][:stop]))
+                                  + "\n")
 
                         if not presearch_result[-1]:
                             for stop in range(len(perturb_x[0]), 0, -1):
-                                if perturb_x[0][stop - 1].item() != 0:
+                                if perturb_x[0][stop - 1].item(
+                                ) != 0 and perturb_x[0][stop - 1].item() != 2:
                                     break
                             f.write(' '.join(
                                 tokenizer.convert_ids_to_tokens(perturb_x[0])))
@@ -104,8 +115,9 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, cands_dir,
                                 if presearch_result[n]:
                                     for stop in range(len(perturb_x_sample), 0,
                                                       -1):
-                                        if perturb_x_sample[stop -
-                                                            1].item() != 0:
+                                        if perturb_x_sample[stop - 1].item(
+                                        ) != 0 and perturb_x_sample[
+                                                stop - 1].item() != 2:
                                             break
                                     f.write(' '.join(
                                         tokenizer.convert_ids_to_tokens(
@@ -117,8 +129,8 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, cands_dir,
     return attack_success_num / attack_num
 
 
-def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
-                samples_num, search_bound, presearch_result):
+def search_fast(Seq2Seq_model, generator, baseline_model, label, z, x_len,
+                y_label, y_len, samples_num, search_bound, presearch_result):
     # z: [sen_len, super_hidden_size]
     Seq2Seq_model.eval()
     generator.eval()
@@ -127,6 +139,10 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
 
         # search_z: [samples_num, sen_len, super_hidden_size]
         search_z = z.repeat(samples_num, 1, 1)
+        x_len = x_len.repeat(samples_num)
+        y_label = y_label.repeat(samples_num, 1)
+        y_len = y_len.repeat(samples_num)
+
         delta = torch.FloatTensor(search_z.size()).uniform_(
             -1 * search_bound, search_bound)
 
@@ -149,7 +165,8 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
             perturb_label = baseline_model(perturb_x,
                                            perturb_x_mask).argmax(dim=1)
         else:
-            perturb_label = baseline_model(perturb_x).argmax(dim=1)
+            perturb_label = baseline_model(
+                ((perturb_x, x_len), (y_label, y_len))).argmax(dim=1)
 
         successed_mask = perturb_label != label
         for i in range(len(presearch_result)):
@@ -162,20 +179,50 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
     return perturb_x, presearch_result
 
 
+def build_dataset(attack_vocab, debug_mode):
+    if dataset == 'SNLI':
+        train_dataset_orig = SNLI_Dataset(train_data=True,
+                                          attack_vocab=attack_vocab,
+                                          debug_mode=debug_mode)
+        test_dataset_orig = SNLI_Dataset(train_data=False,
+                                         attack_vocab=attack_vocab,
+                                         debug_mode=debug_mode)
+    elif dataset == 'AGNEWS':
+        train_dataset_orig = AGNEWS_Dataset(train_data=True,
+                                            attack_vocab=attack_vocab,
+                                            debug_mode=debug_mode)
+        test_dataset_orig = AGNEWS_Dataset(train_data=False,
+                                           attack_vocab=attack_vocab,
+                                           debug_mode=debug_mode)
+    elif dataset == 'IMDB':
+        train_dataset_orig = IMDB_Dataset(train_data=True,
+                                          attack_vocab=attack_vocab,
+                                          debug_mode=debug_mode)
+        test_dataset_orig = IMDB_Dataset(train_data=False,
+                                         attack_vocab=attack_vocab,
+                                         debug_mode=debug_mode)
+    train_data = DataLoader(train_dataset_orig,
+                            batch_size=128,
+                            shuffle=True,
+                            num_workers=4)
+    test_data = DataLoader(test_dataset_orig,
+                           batch_size=128,
+                           shuffle=False,
+                           num_workers=4)
+    return train_data, test_data
+
+
 if __name__ == '__main__':
     train_device = torch.device('cuda:1')
-    dataset = 'AGNEWS'
-    baseline_model = 'LSTM'
-    search_bound = 0.1
-    samples_num = 100
+    dataset = 'SNLI'
+    baseline_model = 'BidLSTM_E'
+    search_bound = [0]
+    samples_num = 1000
 
-    cur_dir = './output/gan_model/AGNEWS/LSTM/1614521151/models/epoch39/'  # gan_adv gan_gen Seq2Seq_model
+    cur_dir = './output/gan_model/SNLI/BidLSTM_E/1615306213/models/epoch14/'  # gan_adv gan_gen Seq2Seq_model
     output_dir = f'./texts/OUR/{dataset}/{baseline_model}'
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
-
-    refs_dir = output_dir + f'/refs_{search_bound}_{samples_num}.txt'
-    cands_dir = output_dir + f'/cands_{search_bound}_{samples_num}.txt'
 
     baseline_model_builder = BaselineModelBuilder(dataset,
                                                   baseline_model,
@@ -199,14 +246,17 @@ if __name__ == '__main__':
     gan_adv.load_state_dict(
         torch.load(cur_dir + 'gan_adv.pt', map_location=train_device))
 
-    _, test_data = build_dataset(baseline_model_builder.vocab)
+    _, test_data = build_dataset(baseline_model_builder.vocab, debug_mode=True)
 
-    attack_acc = perturb(test_data, Seq2Seq_model, gan_gen, gan_adv,
-                         baseline_model_builder.net, cands_dir, refs_dir,
-                         baseline_model_builder.vocab, search_bound,
-                         samples_num)
-    logging(f'attack_acc={attack_acc}')
+    for bound in search_bound:
+        refs_dir = output_dir + f'/refs_{bound}_{samples_num}.txt'
+        cands_dir = output_dir + f'/cands_{bound}_{samples_num}.txt'
+        attack_acc = perturb(test_data, Seq2Seq_model, gan_gen, gan_adv,
+                             baseline_model_builder.net, cands_dir, refs_dir,
+                             baseline_model_builder.vocab, bound, samples_num)
+        logging(f'search_bound={bound}, sample={samples_num}')
+        logging(f'attack_acc={attack_acc}')
 
-    ppl, bert_score = calc_bert_score_ppl(cands_dir, refs_dir)
-    logging(f'ppl={ppl}')
-    logging(f'bert_score={bert_score}')
+        ppl, bert_score = calc_bert_score_ppl(cands_dir, refs_dir)
+        logging(f'ppl={ppl}')
+        logging(f'bert_score={bert_score}')
