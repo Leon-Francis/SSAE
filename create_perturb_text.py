@@ -10,8 +10,8 @@ import torch
 import os
 
 
-def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, cands_dir,
-            refs_dir, attack_vocab, search_bound, samples_num):
+def perturb(data, tokenizer, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
+            cands_dir, refs_dir, attack_vocab, search_bound, samples_num):
     # Turn on evaluation mode which disables dropout.
     Seq2Seq_model.eval()
     gan_gen.eval()
@@ -28,7 +28,6 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, cands_dir,
                             train_device), y_mask.to(train_device), y_len.to(
                                 train_device), y_label.to(
                                     train_device), label.to(train_device)
-                tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
                 # c: [batch, sen_len, hidden_size]
                 c = Seq2Seq_model(x, x_mask, is_noise=False, encode_only=True)
                 # z: [batch, seq_len, super_hidden_size]
@@ -213,13 +212,13 @@ def build_dataset(attack_vocab, debug_mode):
 
 
 if __name__ == '__main__':
-    train_device = torch.device('cuda:1')
+    train_device = torch.device('cuda:3')
     dataset = 'SNLI'
     baseline_model = 'BidLSTM_E'
-    search_bound = [0]
-    samples_num = 1000
+    search_bound = [0.1, 0.2, 0.3, 0.4, 0.5]
+    samples_num = [20, 100, 1000, 2000, 5000]
 
-    cur_dir = './output/gan_model/SNLI/BidLSTM_E/1615306213/models/epoch14/'  # gan_adv gan_gen Seq2Seq_model
+    cur_dir = './output/gan_model/SNLI/BidLSTM_E/1615306213/models/epoch4/'  # gan_adv gan_gen Seq2Seq_model
     output_dir = f'./texts/OUR/{dataset}/{baseline_model}'
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
@@ -248,15 +247,19 @@ if __name__ == '__main__':
 
     _, test_data = build_dataset(baseline_model_builder.vocab, debug_mode=True)
 
-    for bound in search_bound:
-        refs_dir = output_dir + f'/refs_{bound}_{samples_num}.txt'
-        cands_dir = output_dir + f'/cands_{bound}_{samples_num}.txt'
-        attack_acc = perturb(test_data, Seq2Seq_model, gan_gen, gan_adv,
-                             baseline_model_builder.net, cands_dir, refs_dir,
-                             baseline_model_builder.vocab, bound, samples_num)
-        logging(f'search_bound={bound}, sample={samples_num}')
-        logging(f'attack_acc={attack_acc}')
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
-        ppl, bert_score = calc_bert_score_ppl(cands_dir, refs_dir)
-        logging(f'ppl={ppl}')
-        logging(f'bert_score={bert_score}')
+    for samples in samples_num:
+        for bound in search_bound:
+            refs_dir = output_dir + f'/refs_{bound}_{samples}_epoch5.txt'
+            cands_dir = output_dir + f'/cands_{bound}_{samples}_epoch5.txt'
+            attack_acc = perturb(test_data, tokenizer, Seq2Seq_model, gan_gen,
+                                 gan_adv, baseline_model_builder.net,
+                                 cands_dir, refs_dir,
+                                 baseline_model_builder.vocab, bound, samples)
+            logging(f'search_bound={bound}, sample={samples}')
+            logging(f'attack_acc={attack_acc}')
+
+            ppl, bert_score = calc_bert_score_ppl(cands_dir, refs_dir)
+            logging(f'ppl={ppl}')
+            logging(f'bert_score={bert_score}')
