@@ -176,12 +176,14 @@ class IMDB_Dataset(Dataset):
     def data2tokens(self):
         logging(f'{self.path} in data2tokens')
         for sen in self.datas:
-            data_tokens = ['[CLS]']
-            data_tokens += self.tokenizer.tokenize(sen)[:self.sen_len - 1]
             if self.attack_vocab:
+                data_tokens = ['[CLS]']
+                data_tokens += self.baseline_tokenizer(sen)[:self.sen_len - 1]
                 label_tokens = self.baseline_tokenizer(sen)[:self.sen_len - 1]
                 label_tokens += ['[SEP]']
             else:
+                data_tokens = ['[CLS]']
+                data_tokens += self.tokenizer.tokenize(sen)[:self.sen_len - 1]
                 label_tokens = self.tokenizer.tokenize(sen)[:self.sen_len - 1]
                 label_tokens += ['[SEP]']
             self.data_tokens.append(data_tokens)

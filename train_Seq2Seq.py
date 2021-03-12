@@ -144,7 +144,7 @@ if __name__ == '__main__':
     save_config(cur_dir)
 
     baseline_model_builder = BaselineModelBuilder(AttackConfig.dataset,
-                                                  'LSTM',
+                                                  AttackConfig.baseline_model,
                                                   AttackConfig.train_device,
                                                   is_load=True)
 
