@@ -16,7 +16,7 @@ from baseline_vocab import baseline_Vocab
 
 class BaselineModelBuilder():
     def __init__(self, dataset_name, model_name, device:torch.device, is_load=True, vocab=None):
-        assert dataset_name in {'AGNEWS', 'IMDB', 'SNLI'}
+        assert dataset_name in baseline_config_dataset
         assert model_name in baseline_config_models_list
 
         self.dataset_name = dataset_name
@@ -163,7 +163,12 @@ class BaselineModelBuilder():
 
     def __build_Bert(self, is_load, is_entailment):
         is_fine_tune = baseline_BertConfig.is_fine_tuning[self.dataset_name]
-        net = baseline_Bert(self.dataset_config.labels_num, is_fine_tuning=is_fine_tune, is_entailment=is_entailment)
+        linear_layer_num = baseline_BertConfig.linear_layer_num[self.dataset_name]
+        dropout_rate = baseline_BertConfig.dropout_rate[self.dataset_name]
+
+
+        net = baseline_Bert(self.dataset_config.labels_num, linear_layer_num=linear_layer_num,
+                            is_fine_tuning=is_fine_tune, is_entailment=is_entailment, dropout_rate=dropout_rate)
 
         if is_load:
             model_path = baseline_config_model_load_path[self.dataset_name][self.model_name]

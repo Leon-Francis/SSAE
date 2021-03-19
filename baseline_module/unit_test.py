@@ -2,7 +2,9 @@ import torch
 from torch import nn, optim
 import torch.nn.functional as F
 from torch import nn, optim
+from baseline_config import setup_seed
 
+setup_seed(667)
 
 class Encoder(nn.Module):
     def __init__(self):
@@ -60,12 +62,12 @@ def testSeq2Seq():
         print('outputs', predicts)
 
 if __name__ == '__main__':
-    import argparse
-    from transformers import BertTokenizer
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', default='AGNEWS')
-    parser.add_argument('--model', default='Bert')
-    args = parser.parse_args()
+    # import argparse
+    # from transformers import BertTokenizer
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument('--dataset', default='AGNEWS')
+    # parser.add_argument('--model', default='Bert')
+    # args = parser.parse_args()
 
 
     # from baseline_config import *
@@ -97,37 +99,102 @@ if __name__ == '__main__':
         # print(x_hypo)
         # print(label)
 
+    # import torch
+    # from pytorch_pretrained_bert import BertTokenizer, BertForMaskedLM
+    #
+    # # OPTIONAL: if you want to have more information on what's happening, activate the logger as follows
+    # import logging
+    #
+    # logging.basicConfig(level=logging.INFO)
+    #
+    # # Load pre-trained model tokenizer (vocabulary)
+    # tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    #
+    # text = '[CLS] I want to [MASK] the car because it is cheap . [SEP]'
+    # tokenized_text = tokenizer.tokenize(text)
+    # indexed_tokens = tokenizer.convert_tokens_to_ids(tokenized_text)
+    #
+    # # Create the segments tensors.
+    # segments_ids = [0] * len(tokenized_text)
+    # # Convert inputs to PyTorch tensors
+    # tokens_tensor = torch.tensor([indexed_tokens])
+    # segments_tensors = torch.tensor([segments_ids])
+    #
+    # # Load pre-trained model (weights)
+    # model = BertForMaskedLM.from_pretrained('bert-base-uncased')
+    # model.eval()
+    # masked_index = tokenized_text.index('[MASK]')
+    #
+    # # Predict all tokens
+    # with torch.no_grad():
+    #     predictions = model(tokens_tensor, segments_tensors)
+    #
+    # predicted_index = torch.argmax(predictions[0, masked_index]).item()
+    # predicted_token = tokenizer.convert_ids_to_tokens([predicted_index])[0]
+    #
+    # print(predicted_token)
+
     import torch
-    from pytorch_pretrained_bert import BertTokenizer, BertForMaskedLM
+    from torch import nn
 
-    # OPTIONAL: if you want to have more information on what's happening, activate the logger as follows
-    import logging
+    max_len = 30
+    word_dim = 100
+    vocab_size = 100
+    batch_size = 64
+    hidden_dim = 100
 
-    logging.basicConfig(level=logging.INFO)
+    embedding = nn.Embedding(vocab_size, word_dim)
+    net = nn.LSTM(word_dim, hidden_dim)
+    sentence = torch.randint(0, vocab_size, [max_len, batch_size])
+    sentence_len = torch.randint(1, max_len+1, [batch_size])
 
-    # Load pre-trained model tokenizer (vocabulary)
-    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    print(sentence)
 
-    text = '[CLS] I want to [MASK] the car because it is cheap . [SEP]'
-    tokenized_text = tokenizer.tokenize(text)
-    indexed_tokens = tokenizer.convert_tokens_to_ids(tokenized_text)
+    print(sentence_len)
 
-    # Create the segments tensors.
-    segments_ids = [0] * len(tokenized_text)
-    # Convert inputs to PyTorch tensors
-    tokens_tensor = torch.tensor([indexed_tokens])
-    segments_tensors = torch.tensor([segments_ids])
+    def packed():
+        slen_sort, idx_sort = torch.sort(sentence_len, descending=True)
+        idx_reverse = torch.argsort(idx_sort)
 
-    # Load pre-trained model (weights)
-    model = BertForMaskedLM.from_pretrained('bert-base-uncased')
-    model.eval()
-    masked_index = tokenized_text.index('[MASK]')
+        s = sentence.index_select(1, idx_sort)
+        s_packed = nn.utils.rnn.pack_padded_sequence(s, slen_sort)
+        outs, _ = net(s_packed)
 
-    # Predict all tokens
-    with torch.no_grad():
-        predictions = model(tokens_tensor, segments_tensors)
+        temp, _ = nn.utils.rnn.pad_packed_sequence(outs, padding_value=0)
 
-    predicted_index = torch.argmax(predictions[0, masked_index]).item()
-    predicted_token = tokenizer.convert_ids_to_tokens([predicted_index])[0]
+        temp = temp.index_select(1, idx_reverse)
 
-    print(predicted_token)
+        temp = temp[sentence_len-1, torch.arange(temp.size()[1]), :]
+
+        return temp
+
+    def normal():
+
+        outs, _ = net(sentence)
+
+        temp = outs[sentence_len-1, torch.arange(outs.size()[1]), :]
+
+        return temp
+
+
+    sentence = embedding(sentence)
+
+    t1 = packed()
+
+    t2 = normal()
+
+    print(t1)
+
+    print(t2)
+
+    print(torch.eq(t1, t2))
+
+    for i in range(0):
+        print(i)
+
+
+
+
+
+
+    pass
