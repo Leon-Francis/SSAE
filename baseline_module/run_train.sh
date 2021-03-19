@@ -1,4 +1,4 @@
-model=BidLSTM_E
+model=Bert_E
 dataset=SNLI
 
 
@@ -11,15 +11,17 @@ log="train_${dataset}_${model}_$(date +'%m_%d+%H+%M+%S').log"
 
 nohup \
 python -u baseline_train.py \
---scratch yes \
+--scratch no \
 --dataset ${dataset} \
 --model ${model} \
 --epoch 30 \
 --batch 128 \
---lr 1e-3 \
---load_model no \
---cuda 3 \
---save_acc_limit 0.79 \
---only_evaluate no \
---skip_loss 0.0 \
+--lr 9e-4 \
+--load_model yes \
+--cuda 2 \
+--save_acc_limit 0.88 \
+--only_evaluate yes \
+--skip_loss 0.16 \
 >${log} 2>&1 &
+
+tail -f ${log}

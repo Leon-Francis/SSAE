@@ -104,12 +104,12 @@ if using_bert:
         [
             {'params': model.net.bert_model.parameters(), 'lr': 1e-5},
             {'params': model.net.fc.parameters(), 'lr': lr}
-        ], lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.1
+        ], lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-3
     )
 else:
-    optimizer = optim.AdamW(model.net.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.2)
+    optimizer = optim.AdamW(model.net.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-3)
     # optimizer = optim.Adam(model.net.parameters(), lr=lr, )
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.9, patience=3,
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.85, patience=3,
                                                      verbose=True, min_lr=3e-8)
 warmup_scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda ep: 1e-2 if ep < 4 else 1.0)
 

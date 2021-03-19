@@ -22,8 +22,8 @@ def save_pkl_obj(obj, path):
         pickle.dump(obj, file)
 
 def logging(info: str):
-    print('\n\r' + '[INFO]' + datetime.now().strftime("%Y-%m-%d %H:%M:%S") +
-          '\n\r' + str(info))
+    print('\n' + '[INFO]' + datetime.now().strftime("%Y-%m-%d %H:%M:%S") +
+          '\n' + str(info))
 
 def get_time()->str:
     return str(datetime.now().strftime("%m_%d-%H-%M"))
@@ -104,8 +104,27 @@ def read_SNLI_origin_data(sentence_path, data_path):
             hypothesis.append(sentences[int(temp[2])])
     return premise, hypothesis, labels
 
-if __name__ == '__main__':
-    sentence_path = '/home/jsjlab/projects/AttackViaGan/dataset/SNLI/sentences.txt'
-    data_path = '/home/jsjlab/projects/AttackViaGan/dataset/SNLI/train.txt'
+def read_SST2_origin_data(path):
+    datas = []
+    labels = []
+    with open(path, 'r') as file:
+        for i, line in enumerate(file):
+            if i == 0: continue
+            line = line.strip('\n')
+            datas.append(line[:-2])
+            labels.append(line[-1])
 
-    read_SNLI_origin_data(sentence_path, data_path)
+    return datas, labels
+
+if __name__ == '__main__':
+    path = '/home/jsjlab/projects/AttackViaGan/dataset/SST2/train.std'
+    datas, labels = read_standard_data(path)
+    lens = [len(x.split(' ')) for x in datas]
+    print(max(lens), min(lens))
+
+    import pandas as pd
+
+
+
+
+    pass

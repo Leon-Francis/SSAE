@@ -167,7 +167,7 @@ class baseline_TextCNN(nn.Module):
         return logits
 
 class baseline_Bert(nn.Module):
-    def __init__(self, label_num:int, is_fine_tuning=True, is_entailment=False):
+    def __init__(self, label_num:int, linear_layer_num:int, dropout_rate:float, is_fine_tuning=True, is_entailment=False):
         super(baseline_Bert, self).__init__()
         self.bert_model = BertModel.from_pretrained(baseline_BertConfig.model_name)
         self.model_name = 'Bert_E' if is_entailment else 'Bert'
@@ -175,10 +175,18 @@ class baseline_Bert(nn.Module):
         if not is_fine_tuning:
             for param in self.bert_model.parameters():
                 param.requires_grad = False
-        self.fc = nn.Sequential(
-            nn.Dropout(0.5),
-            nn.Linear(self.hidden_size, label_num),
-        )
+
+        modules = [nn.Dropout(dropout_rate)]
+
+        for i in range(linear_layer_num-1):
+            modules += [
+                nn.Linear(self.hidden_size, self.hidden_size),
+                nn.ReLU(),
+                nn.Dropout(dropout_rate)
+            ]
+        modules.append(nn.Linear(self.hidden_size, label_num))
+        self.fc = nn.Sequential(*modules)
+
 
 
     def forward(self, x, types, masks):
@@ -288,6 +296,7 @@ class baseline_Infnet(nn.Module):
         self.enc_lstm = nn.LSTM(self.word_emb_dim, self.enc_lstm_dim, num_layer,
                                 bidirectional=True, dropout=dropout_rate)
 
+        self.padding_value = -1e9 if pool_type == 'max' else 0.0
 
     def forward(self, sent:torch.Tensor, sent_len:torch.Tensor):
         sort = torch.sort(sent_len, descending=True)
@@ -298,7 +307,7 @@ class baseline_Infnet(nn.Module):
 
         sent_packed = nn.utils.rnn.pack_padded_sequence(sent, sent_len_sort)
         outs, _ = self.enc_lstm(sent_packed)
-        outs, _ = nn.utils.rnn.pad_packed_sequence(outs)
+        outs, _ = nn.utils.rnn.pad_packed_sequence(outs, padding_value=self.padding_value)
 
         outs = outs.index_select(1, idx_reverse)
 
@@ -311,8 +320,7 @@ class baseline_Infnet(nn.Module):
             emb = torch.max(outs, 0).values
             return emb
         else:
-            return outs[-1]
-
+            return outs[sent_len-1, torch.arange(outs.size(1)), :]
 
 class baseline_BidLSTM_entailment(nn.Module):
     def __init__(self, vocab:'Vocab', word_dim, lstm_hidden, num_layer, labels_num, linear_size, dropout_rate=0.25,
@@ -378,3 +386,7 @@ if __name__ == '__main__':
 
     net = baseline_Infnet(word_dim, num_hidden, num_layer=2)
     out = net(sentence, sentence_len)
+
+    for k, v in vars(net).items():
+        if k.startswith('_'): continue
+        print(k, v)
