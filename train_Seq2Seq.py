@@ -22,7 +22,7 @@ def train_Seq2Seq(train_data, test_data, model, criterion, optimizer, cur_dir,
         model.train()
         loss_mean = 0.0
         n = 0
-        for x, x_mask, _, x_label, _, _, _, _, _ in train_data:
+        for x, x_mask, _, x_label, _, _, _, _, _, _ in train_data:
             x, x_mask, x_label = x.to(AttackConfig.train_device), x_mask.to(
                 AttackConfig.train_device), x_label.to(
                     AttackConfig.train_device)
@@ -53,7 +53,7 @@ def evaluate_Seq2Seq(test_data, Seq2Seq_model, path, attack_vocab):
     with torch.no_grad():
         acc_sum = 0
         n = 0
-        for x, x_mask, _, x_label, _, _, _, _, _ in test_data:
+        for x, x_mask, _, x_label, _, _, _, _, _, _ in test_data:
             x, x_mask, x_label = x.to(AttackConfig.train_device), x_mask.to(
                 AttackConfig.train_device), x_label.to(
                     AttackConfig.train_device)
@@ -154,8 +154,9 @@ if __name__ == '__main__':
     train_data, test_data = build_dataset(
         attack_vocab=baseline_model_builder.vocab)
 
-    model = Seq2Seq_bert(baseline_model_builder.vocab.num).to(
-        AttackConfig.train_device)
+    model = Seq2Seq_bert(
+        baseline_model_builder.vocab.num if baseline_model_builder.
+        vocab else AttackConfig.vocab_size).to(AttackConfig.train_device)
     if AttackConfig.train_multi_cuda:
         model = nn.DataParallel(model, device_ids=AttackConfig.multi_cuda_idx)
 

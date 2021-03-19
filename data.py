@@ -237,6 +237,7 @@ class SNLI_Dataset(Dataset):
     hypothesis_data_mask = mask of hypothesis,
     hypothesis_data_len = len of seq_hypothesis,
     hypothesis_label_idx = seq_hypothesis + 1,
+    whole_type = 0(premise_sen) + 1(hypothesis_sen)
     classification_label
     """
     def __init__(self, train_data=True, attack_vocab=None, debug_mode=False):
@@ -266,6 +267,7 @@ class SNLI_Dataset(Dataset):
         self.hypothesis_label_idx = []
         self.hypothesis_data_mask = []
         self.hypothesis_data_len = []
+        self.whole_type = []
         self.data2tokens()
         self.token2idx()
         self.transfor()
@@ -386,6 +388,10 @@ class SNLI_Dataset(Dataset):
                 self.hypothesis_label_idx[i] += [0] * (
                     self.sen_len - len(self.hypothesis_label_idx[i]))
 
+        for i in range(len(self.premise_data_idx)):
+            self.whole_type.append([0] * len(self.premise_data_idx[i]) +
+                                   [1] * len(self.hypothesis_data_idx[i]))
+
     def transfor(self):
         self.premise_data_idx = torch.tensor(self.premise_data_idx)
         self.premise_data_mask = torch.tensor(self.premise_data_mask)
@@ -395,6 +401,7 @@ class SNLI_Dataset(Dataset):
         self.hypothesis_data_mask = torch.tensor(self.hypothesis_data_mask)
         self.hypothesis_data_len = torch.tensor(self.hypothesis_data_len)
         self.hypothesis_label_idx = torch.tensor(self.hypothesis_label_idx)
+        self.whole_type = torch.tensor(self.whole_type)
         self.classification_label = torch.tensor(self.classification_label)
 
     def __getitem__(self, item):
@@ -404,7 +411,8 @@ class SNLI_Dataset(Dataset):
                     item], self.hypothesis_data_mask[
                         item], self.hypothesis_data_len[
                             item], self.hypothesis_label_idx[
-                                item], self.classification_label[item]
+                                item], self.whole_type[
+                                    item], self.classification_label[item]
 
     def __len__(self):
         return len(self.premise_data)

@@ -14,13 +14,13 @@ class AttackConfig():
         cuda_idx = multi_cuda_idx[0]
     train_device = torch.device('cuda:' + str(cuda_idx))
     dataset = 'SNLI'  # choices = 'IMDB', 'AGNEWS', 'SNLI'
-    baseline_model = 'BidLSTM_E'  # choices = 'LSTM', 'TextCNN', 'BidLSTM', 'Bert'
+    baseline_model = 'Bert_E'  # choices = 'LSTM', 'TextCNN', 'BidLSTM', 'Bert'
     debug_mode = False
     epochs = 30
     batch_size = 128
 
     load_pretrained_Seq2Seq = True
-    Seq2Seq_BidLSTM = True
+    Seq2Seq_BidLSTM = False
     head_tail = False
     fine_tuning = False
 
@@ -30,10 +30,12 @@ class AttackConfig():
         if dataset == 'IMDB':
             pretrained_Seq2Seq_path = r'./output/seq2seq_model/IMDB/1614672817/Seq2Seq_model.pt'
         if dataset == 'SNLI':
-            if not Seq2Seq_BidLSTM:
-                pretrained_Seq2Seq_path = r'./output/seq2seq_model/SNLI/1615217103/Seq2Seq_model.pt'
-            else:
+            if Seq2Seq_BidLSTM:
                 pretrained_Seq2Seq_path = r'./output/seq2seq_model/SNLI/1615217989/Seq2Seq_model.pt'
+            elif baseline_model == 'Bert_E':
+                pretrained_Seq2Seq_path = r'./output/seq2seq_model/SNLI/1615718599/Seq2Seq_model.pt'
+            else:
+                pretrained_Seq2Seq_path = r'./output/seq2seq_model/SNLI/1615217103/Seq2Seq_model.pt'
     if fine_tuning:
         Seq2Seq_learning_rate_BERT = 5e-6
         Seq2Seq_learning_rate_LSTM = 1e-4

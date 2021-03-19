@@ -1,1 +1,1 @@
-nohup python train_Seq2Seq.py > train_Seq2Seq_SNLI_more_lr_15sen_len_2.log 2>&1 &
+nohup python train_Seq2Seq.py > train_Seq2Seq_SNLI_Bert_2.log 2>&1 &

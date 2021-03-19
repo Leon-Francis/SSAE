@@ -15,7 +15,7 @@ from baseline_module.baseline_model_builder import BaselineModelBuilder
 
 def train_Seq2Seq(train_data, model, criterion, optimizer, total_loss):
     model.train()
-    x, x_mask, _, x_label, _, _, _, _, _ = train_data
+    x, x_mask, _, x_label, _, _, _, _, _, _ = train_data
     logits = model(x, x_mask, is_noise=False)
     model.zero_grad()
     logits = logits.reshape(-1, logits.shape[-1])
@@ -37,16 +37,16 @@ def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
     optimizer_gan_a.zero_grad()
     optimizer_gan_g.zero_grad()
 
-    x, x_mask, x_len, _, _, _, y_len, y_label, label = train_data
+    x, x_mask, x_len, _, _, y_mask, y_len, y_label, whole_type, label = train_data
     # perturb_x: [batch, sen_len]
     perturb_x = Seq2Seq_model(x,
                               x_mask,
                               is_noise=False,
                               generator=gan_gen,
                               adversary=gan_adv).argmax(dim=2)
-    if AttackConfig.baseline_model == 'Bert':
+    if AttackConfig.baseline_model in ['Bert', 'Bert_E']:
         # perturb_x_mask: [batch, seq_len]
-        perturb_x_mask = torch.ones(perturb_x.shape, requires_grad=True)
+        perturb_x_mask = torch.ones(perturb_x.shape, dtype=torch.int64)
         with torch.no_grad():
             # mask before [SEP]
             for i in range(perturb_x.shape[0]):
@@ -56,7 +56,9 @@ def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
                         break
         perturb_x_mask = perturb_x_mask.to(AttackConfig.train_device)
         # perturb_logits: [batch, 4]
-        perturb_logits = baseline_model(perturb_x, perturb_x_mask)
+        perturb_logits = baseline_model(
+            torch.cat((perturb_x, y_label), dim=1), whole_type,
+            torch.cat((perturb_x_mask, y_mask), dim=1))
     else:
         perturb_logits = baseline_model(((perturb_x, x_len), (y_label, y_len)))
 
@@ -76,7 +78,7 @@ def train_gan_g(train_data, Seq2Seq_model, gan_gen, gan_adv, criterion_mse,
     optimizer_gan_a.zero_grad()
     optimizer_gan_g.zero_grad()
 
-    x, x_mask, _, x_label, _, _, _, _, _ = train_data
+    x, x_mask, _, x_label, _, _, _, _, _, _ = train_data
     # real_hidden: [batch, sen_len, hidden]
     real_hidden = Seq2Seq_model(x, x_mask, is_noise=False, encode_only=True)
     fake_hidden = gan_gen(gan_adv(real_hidden))
@@ -100,7 +102,7 @@ def evaluate_gan(test_data, Seq2Seq_model, gan_gen, gan_adv, dir,
     logging(f'Saving evaluate of gan outputs into {dir}')
     with torch.no_grad():
 
-        for x, x_mask, _, x_label, _, _, _, _, _ in test_data:
+        for x, x_mask, _, x_label, _, _, _, _, _, _ in test_data:
             x, x_mask, x_label = x.to(AttackConfig.train_device), x_mask.to(
                 AttackConfig.train_device), x_label.to(
                     AttackConfig.train_device)
@@ -166,7 +168,7 @@ def evaluate_Seq2Seq(test_data, Seq2Seq_model, dir, attack_vocab):
     with torch.no_grad():
         acc_sum = 0
         n = 0
-        for x, x_mask, _, x_label, _, _, _, _, _ in test_data:
+        for x, x_mask, _, x_label, _, _, _, _, _, _ in test_data:
             x, x_mask, x_label = x.to(AttackConfig.train_device), x_mask.to(
                 AttackConfig.train_device), x_label.to(
                     AttackConfig.train_device)
@@ -276,7 +278,8 @@ if __name__ == '__main__':
     # init models
     logging('init models, optimizer, criterion...')
     Seq2Seq_model = Seq2Seq_bert(
-        baseline_model_builder.vocab.num,
+        baseline_model_builder.vocab.num
+        if baseline_model_builder.vocab else AttackConfig.vocab_size,
         bidirectional=AttackConfig.Seq2Seq_BidLSTM).to(
             AttackConfig.train_device)
     if AttackConfig.load_pretrained_Seq2Seq:
@@ -328,9 +331,9 @@ if __name__ == '__main__':
         total_loss_gan_a = 0
         total_loss_gan_g = 0
         logging(f'Training {epoch} epoch')
-        for x, x_mask, x_len, x_label, y, y_mask, y_len, y_label, label in train_data:
+        for x, x_mask, x_len, x_label, y, y_mask, y_len, y_label, whole_type, label in train_data:
             niter += 1
-            x, x_mask, x_len, x_label, y, y_mask, y_len, y_label, label = x.to(
+            x, x_mask, x_len, x_label, y, y_mask, y_len, y_label, whole_type, label = x.to(
                 AttackConfig.train_device
             ), x_mask.to(AttackConfig.train_device), x_len.to(
                 AttackConfig.train_device), x_label.to(
@@ -338,35 +341,38 @@ if __name__ == '__main__':
                         AttackConfig.train_device), y_mask.to(
                             AttackConfig.train_device), y_len.to(
                                 AttackConfig.train_device), y_label.to(
-                                    AttackConfig.train_device), label.to(
-                                        AttackConfig.train_device)
+                                    AttackConfig.train_device), whole_type.to(
+                                        AttackConfig.train_device), label.to(
+                                            AttackConfig.train_device)
 
             if not AttackConfig.load_pretrained_Seq2Seq:
                 for i in range(AttackConfig.seq2seq_train_times):
                     total_loss_Seq2Seq += train_Seq2Seq(
                         (x, x_mask, x_len, x_label, y, y_mask, y_len, y_label,
-                         label), Seq2Seq_model, criterion_ce,
+                         whole_type, label), Seq2Seq_model, criterion_ce,
                         optimizer_Seq2Seq, total_loss_Seq2Seq)
             else:
                 if AttackConfig.fine_tuning:
                     for i in range(AttackConfig.seq2seq_train_times):
                         total_loss_Seq2Seq += train_Seq2Seq(
                             (x, x_mask, x_len, x_label, y, y_mask, y_len,
-                             y_label, label), Seq2Seq_model, criterion_ce,
-                            optimizer_Seq2Seq, total_loss_Seq2Seq)
+                             y_label, whole_type, label), Seq2Seq_model,
+                            criterion_ce, optimizer_Seq2Seq,
+                            total_loss_Seq2Seq)
 
             for k in range(niter_gan):
                 if epoch < AttackConfig.gan_gen_train_limit:
                     for i in range(AttackConfig.gan_gen_train_times):
                         total_loss_gan_g += train_gan_g(
                             (x, x_mask, x_len, x_label, y, y_mask, y_len,
-                             y_label, label), Seq2Seq_model, gan_gen, gan_adv,
-                            criterion_mse, optimizer_gan_g, optimizer_gan_a)
+                             y_label, whole_type, label), Seq2Seq_model,
+                            gan_gen, gan_adv, criterion_mse, optimizer_gan_g,
+                            optimizer_gan_a)
 
                 for i in range(AttackConfig.gan_adv_train_times):
                     total_loss_gan_a += train_gan_a(
                         (x, x_mask, x_len, x_label, y, y_mask, y_len, y_label,
-                         label), Seq2Seq_model, gan_gen, gan_adv,
+                         whole_type, label), Seq2Seq_model, gan_gen, gan_adv,
                         baseline_model, optimizer_gan_g, optimizer_gan_a,
                         criterion_ce)
 
