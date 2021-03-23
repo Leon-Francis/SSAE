@@ -13,7 +13,7 @@ class AttackConfig():
         multi_cuda_idx = [0, 1, 2, 3]
         cuda_idx = multi_cuda_idx[0]
     train_device = torch.device('cuda:' + str(cuda_idx))
-    dataset = 'IMDB'  # choices = 'IMDB', 'AGNEWS', 'SNLI'
+    dataset = 'SST2'  # choices = 'IMDB', 'AGNEWS', 'SNLI', 'SST2'
     baseline_model = 'LSTM'  # choices = 'LSTM', 'TextCNN', 'BidLSTM', 'Bert'
     debug_mode = False
     epochs = 120
@@ -78,6 +78,16 @@ class IMDBConfig():
     tokenizer_type = 'bert'
     remove_stop_words = False
     sen_len = 230
+    vocab_size = bert_vocab_size
+
+
+class SSTConfig():
+    train_data_path = r'./dataset/SST2/train.std'
+    test_data_path = r'./dataset/SST2/test.std'
+    labels_num = 2
+    tokenizer_type = 'bert'
+    remove_stop_words = False
+    sen_len = 20
     vocab_size = bert_vocab_size
 
 

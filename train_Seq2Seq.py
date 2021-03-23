@@ -1,7 +1,7 @@
 import os
 import time
 from model import Seq2Seq_bert
-from data import AGNEWS_Dataset, IMDB_Dataset, SNLI_Dataset
+from data import AGNEWS_Dataset, IMDB_Dataset, SNLI_Dataset, SST2_Dataset
 from tools import logging
 from config import AttackConfig
 from config import config_path
@@ -113,6 +113,13 @@ def build_dataset(attack_vocab):
                                           attack_vocab=attack_vocab,
                                           debug_mode=AttackConfig.debug_mode)
         test_dataset_orig = IMDB_Dataset(train_data=False,
+                                         attack_vocab=attack_vocab,
+                                         debug_mode=AttackConfig.debug_mode)
+    elif AttackConfig.dataset == 'SST2':
+        train_dataset_orig = SST2_Dataset(train_data=True,
+                                          attack_vocab=attack_vocab,
+                                          debug_mode=AttackConfig.debug_mode)
+        test_dataset_orig = SST2_Dataset(train_data=False,
                                          attack_vocab=attack_vocab,
                                          debug_mode=AttackConfig.debug_mode)
     train_data = DataLoader(train_dataset_orig,
