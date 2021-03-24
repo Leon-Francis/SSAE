@@ -9,6 +9,7 @@ from tools import logging
 import torch
 import os
 import time
+import numpy as np
 
 
 def perturb(data, tokenizer, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
@@ -30,16 +31,12 @@ def perturb(data, tokenizer, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
         with open(cands_dir, "w") as f, open(refs_dir, "w") as f_1:
             for x, x_mask, x_len, x_label, y, y_mask, y_len, y_label, whole_type, label in data:
                 x, x_mask, x_len, x_label, y, y_mask, y_len, y_label, whole_type, label = x.to(
-                    AttackConfig.train_device
-                ), x_mask.to(AttackConfig.train_device), x_len.to(
-                    AttackConfig.train_device
-                ), x_label.to(AttackConfig.train_device), y.to(
-                    AttackConfig.train_device), y_mask.to(
-                        AttackConfig.train_device), y_len.to(
-                            AttackConfig.train_device), y_label.to(
-                                AttackConfig.train_device), whole_type.to(
-                                    AttackConfig.train_device), label.to(
-                                        AttackConfig.train_device)
+                    train_device), x_mask.to(train_device), x_len.to(
+                        train_device), x_label.to(train_device), y.to(
+                            train_device), y_mask.to(train_device), y_len.to(
+                                train_device), y_label.to(
+                                    train_device), whole_type.to(
+                                        train_device), label.to(train_device)
                 gen_time -= time.time()
 
                 # c: [batch, sen_len, hidden_size]
@@ -88,8 +85,6 @@ def perturb(data, tokenizer, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
 
                     gen_time += g_t
                     test_time += t_t
-
-                    perturb_x = perturb_x.to(torch.device('cpu'))
 
                     output_time -= time.time()
 
@@ -187,7 +182,7 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z, x_len,
 
         delta = torch.FloatTensor(search_z.size()).uniform_(
             -1 * search_bound, search_bound)
-
+        dist = np.array([np.sqrt(np.sum(x**2)) for x in delta.numpy()])
         delta = delta.to(train_device)
         search_z += delta
         # pertub_hidden: [samples_num, sen_len, hidden_size]
@@ -219,7 +214,14 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z, x_len,
 
         successed_mask = perturb_label != label
 
-    return perturb_x, successed_mask, g_t, t_t
+        sorted_perturb_x = []
+        sorted_successed_mask = []
+        for _, x, y in sorted(zip(dist, perturb_x, successed_mask),
+                              key=lambda pair: pair[0]):
+            sorted_perturb_x.append(x)
+            sorted_successed_mask.append(y)
+
+    return sorted_perturb_x, sorted_successed_mask, g_t, t_t
 
 
 def build_dataset(attack_vocab, debug_mode):
@@ -256,11 +258,11 @@ def build_dataset(attack_vocab, debug_mode):
 
 
 if __name__ == '__main__':
-    train_device = torch.device('cuda:3')
+    train_device = torch.device('cuda:1')
     dataset = 'SNLI'
     baseline_model = 'BidLSTM_E'
-    search_bound = [0.1, 0.2, 0.3, 0.4, 0.5]
-    samples_num = [20, 100, 1000, 2000, 5000, 7000]
+    search_bound = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
+    samples_num = [20, 100, 1000, 2000]
 
     cur_dir = './output/gan_model/SNLI/BidLSTM_E/1615306213/models/epoch29/'  # gan_adv gan_gen Seq2Seq_model
     output_dir = f'./texts/OUR/{dataset}/{baseline_model}'
