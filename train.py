@@ -7,7 +7,7 @@ from transformers import BertTokenizer
 from perturb import perturb
 from shutil import copyfile
 from model import Seq2Seq_bert, LSTM_G, LSTM_A
-from data import AGNEWS_Dataset, IMDB_Dataset, SNLI_Dataset
+from data import AGNEWS_Dataset, IMDB_Dataset, SNLI_Dataset, SST2_Dataset
 from tools import logging
 from config import config_path, AttackConfig
 from baseline_module.baseline_model_builder import BaselineModelBuilder
@@ -237,6 +237,13 @@ def build_dataset(attack_vocab):
                                           attack_vocab=attack_vocab,
                                           debug_mode=AttackConfig.debug_mode)
         test_dataset_orig = IMDB_Dataset(train_data=False,
+                                         attack_vocab=attack_vocab,
+                                         debug_mode=AttackConfig.debug_mode)
+    elif AttackConfig.dataset == 'SST2':
+        train_dataset_orig = SST2_Dataset(train_data=True,
+                                          attack_vocab=attack_vocab,
+                                          debug_mode=AttackConfig.debug_mode)
+        test_dataset_orig = SST2_Dataset(train_data=False,
                                          attack_vocab=attack_vocab,
                                          debug_mode=AttackConfig.debug_mode)
     train_data = DataLoader(train_dataset_orig,

@@ -16,7 +16,7 @@ class AttackConfig():
     dataset = 'SST2'  # choices = 'IMDB', 'AGNEWS', 'SNLI', 'SST2'
     baseline_model = 'LSTM'  # choices = 'LSTM', 'TextCNN', 'BidLSTM', 'Bert'
     debug_mode = False
-    epochs = 120
+    epochs = 30
     batch_size = 128
 
     load_pretrained_Seq2Seq = True
@@ -34,6 +34,9 @@ class AttackConfig():
                 pretrained_Seq2Seq_path = r'./output/seq2seq_model/SNLI/1615217103/Seq2Seq_model.pt'
             else:
                 pretrained_Seq2Seq_path = r'./output/seq2seq_model/SNLI/1615217989/Seq2Seq_model.pt'
+        if dataset == 'SST2':
+            pretrained_Seq2Seq_path = r'./output/seq2seq_model/SST2/1616492387/Seq2Seq_model.pt'
+
     if fine_tuning:
         Seq2Seq_learning_rate_BERT = 5e-6
         Seq2Seq_learning_rate_LSTM = 1e-4
