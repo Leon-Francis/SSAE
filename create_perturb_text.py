@@ -1,12 +1,14 @@
 from transformers import BertTokenizer
 from model import Seq2Seq_bert, LSTM_G, LSTM_A
 from baseline_module.baseline_model_builder import BaselineModelBuilder
-from train import build_dataset
+from data import AGNEWS_Dataset, IMDB_Dataset, SNLI_Dataset, SST2_Dataset
 from config import AttackConfig
+from torch.utils.data import DataLoader
 from calc_BertScore_ppl import calc_bert_score_ppl
 from tools import logging
 import torch
 import os
+import numpy as np
 
 
 def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, cands_dir,
@@ -129,7 +131,7 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
         search_z = z.repeat(samples_num, 1, 1)
         delta = torch.FloatTensor(search_z.size()).uniform_(
             -1 * search_bound, search_bound)
-
+        dist = np.array([np.sqrt(np.sum(x**2)) for x in delta.numpy()])
         delta = delta.to(train_device)
         search_z += delta
         # pertub_hidden: [samples_num, sen_len, hidden_size]
@@ -159,18 +161,67 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
                         presearch_result[i] = True
                         break
 
-    return perturb_x, presearch_result
+        sorted_perturb_x = []
+        sorted_perturb_result = []
+        for _, x, y in sorted(zip(dist, perturb_x, presearch_result),
+                              key=lambda pair: pair[0]):
+            sorted_perturb_x.append(x)
+            sorted_perturb_result.append(y)
+
+    return sorted_perturb_x, sorted_perturb_result
+
+
+def build_dataset(attack_vocab):
+    if dataset == 'SNLI':
+        train_dataset_orig = SNLI_Dataset(train_data=True,
+                                          attack_vocab=attack_vocab,
+                                          debug_mode=True)
+        test_dataset_orig = SNLI_Dataset(train_data=False,
+                                         attack_vocab=attack_vocab,
+                                         debug_mode=True)
+    elif dataset == 'AGNEWS':
+        train_dataset_orig = AGNEWS_Dataset(
+            train_data=True,
+            attack_vocab=attack_vocab,
+            debug_mode=True,
+        )
+        test_dataset_orig = AGNEWS_Dataset(train_data=False,
+                                           attack_vocab=attack_vocab,
+                                           debug_mode=True)
+    elif dataset == 'IMDB':
+        train_dataset_orig = IMDB_Dataset(train_data=True,
+                                          attack_vocab=attack_vocab,
+                                          debug_mode=True)
+        test_dataset_orig = IMDB_Dataset(train_data=False,
+                                         attack_vocab=attack_vocab,
+                                         debug_mode=True)
+    elif dataset == 'SST2':
+        train_dataset_orig = SST2_Dataset(train_data=True,
+                                          attack_vocab=attack_vocab,
+                                          debug_mode=True)
+        test_dataset_orig = SST2_Dataset(train_data=False,
+                                         attack_vocab=attack_vocab,
+                                         debug_mode=True)
+    train_data = DataLoader(train_dataset_orig,
+                            batch_size=AttackConfig.batch_size,
+                            shuffle=True,
+                            num_workers=4)
+    test_data = DataLoader(test_dataset_orig,
+                           batch_size=AttackConfig.batch_size,
+                           shuffle=False,
+                           num_workers=4)
+    return train_data, test_data
 
 
 if __name__ == '__main__':
     train_device = torch.device('cuda:1')
-    dataset = 'AGNEWS'
-    baseline_model = 'LSTM'
+    dataset = 'SNLI'
+    baseline_model = 'BidLSTM_E'
     search_bound = 0.1
-    samples_num = 100
+    samples_num = 20
 
-    cur_dir = './output/gan_model/AGNEWS/LSTM/1614521151/models/epoch39/'  # gan_adv gan_gen Seq2Seq_model
-    output_dir = f'./texts/OUR/{dataset}/{baseline_model}'
+    cur_dir = './output/gan_model/SNLI/BidLSTM_E/1616342834/models/epoch29/'  # gan_adv gan_gen Seq2Seq_model
+    output_dir = f'./texts/OUR/{dataset}/{baseline_model}_noAdv'
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
 
