@@ -8,7 +8,7 @@ config_path = './config.py'
 class AttackConfig():
     output_dir = r'./output'
     train_multi_cuda = False
-    cuda_idx = 1
+    cuda_idx = 2
     if train_multi_cuda:
         multi_cuda_idx = [0, 1, 2, 3]
         cuda_idx = multi_cuda_idx[0]
@@ -39,6 +39,11 @@ class AttackConfig():
                 pretrained_Seq2Seq_path = r'./output/seq2seq_model/SNLI/1615718599/Seq2Seq_model.pt'
             else:
                 pretrained_Seq2Seq_path = r'./output/seq2seq_model/SNLI/1615217103/Seq2Seq_model.pt'
+        if dataset == 'SST2':
+            if baseline_model == 'Bert':
+                pretrained_Seq2Seq_path = r''
+            else:
+                pretrained_Seq2Seq_path = r'./output/seq2seq_model/SST2/1616492387/Seq2Seq_model.pt'
 
     if fine_tuning:
         Seq2Seq_learning_rate_BERT = 5e-6
