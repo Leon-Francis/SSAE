@@ -1,1 +1,1 @@
-nohup python train_Seq2Seq.py > train_Seq2Seq_SST2_1_fineturing_120epoch.log 2>&1 &
+nohup python train_Seq2Seq.py > train_Seq2Seq_IMDB_Bert_1.log 2>&1 &
