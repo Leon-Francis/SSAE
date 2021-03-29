@@ -28,14 +28,17 @@ class AttackConfig():
         if dataset == 'AGNEWS':
             pretrained_Seq2Seq_path = r'./output/seq2seq_model/AGNEWS/1611484301/Seq2Seq_model.pt'
         if dataset == 'IMDB':
-            pretrained_Seq2Seq_path = r'./output/seq2seq_model/IMDB/1614672817/Seq2Seq_model.pt'
-        if dataset == 'SNLI':
-            if not Seq2Seq_BidLSTM:
-                pretrained_Seq2Seq_path = r'./output/seq2seq_model/SNLI/1615217103/Seq2Seq_model.pt'
+            if baseline_model == 'Bert':
+                pretrained_Seq2Seq_path = r''
             else:
+                pretrained_Seq2Seq_path = r'./output/seq2seq_model/IMDB/1615541232/Seq2Seq_model.pt'
+        if dataset == 'SNLI':
+            if Seq2Seq_BidLSTM:
                 pretrained_Seq2Seq_path = r'./output/seq2seq_model/SNLI/1615217989/Seq2Seq_model.pt'
-        if dataset == 'SST2':
-            pretrained_Seq2Seq_path = r'./output/seq2seq_model/SST2/1616492387/Seq2Seq_model.pt'
+            elif baseline_model == 'Bert_E':
+                pretrained_Seq2Seq_path = r'./output/seq2seq_model/SNLI/1615718599/Seq2Seq_model.pt'
+            else:
+                pretrained_Seq2Seq_path = r'./output/seq2seq_model/SNLI/1615217103/Seq2Seq_model.pt'
 
     if fine_tuning:
         Seq2Seq_learning_rate_BERT = 5e-6
