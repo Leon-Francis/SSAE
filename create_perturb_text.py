@@ -47,7 +47,7 @@ def perturb(data, tokenizer, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
 
                 val_time -= time.time()
 
-                if baseline_model in ['Bert', 'Bert_E']:
+                if baseline_model_name in ['Bert', 'Bert_E']:
                     skiped = label != baseline_model(
                         torch.cat((x_label, y_label), dim=1), whole_type,
                         torch.cat((x_mask, y_mask), dim=1)).argmax(dim=1)
@@ -177,8 +177,8 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z, x_len,
         x_len = x_len.repeat(samples_num)
         y_label = y_label.repeat(samples_num, 1)
         y_len = y_len.repeat(samples_num)
-        y_mask = y_mask.repeat(samples_num)
-        whole_type = whole_type.repeat(samples_num)
+        y_mask = y_mask.repeat(samples_num, 1)
+        whole_type = whole_type.repeat(samples_num, 1)
 
         delta = torch.FloatTensor(search_z.size()).uniform_(
             -1 * search_bound, search_bound)
@@ -193,7 +193,7 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z, x_len,
         g_t = time.time() - g_t
         t_t = time.time()
 
-        if baseline_model in ['Bert', 'Bert_E']:
+        if baseline_model_name in ['Bert', 'Bert_E']:
             perturb_x_mask = torch.ones(perturb_x.shape, dtype=torch.int64)
             # mask before [SEP]
             for i in range(perturb_x.shape[0]):
@@ -258,19 +258,19 @@ def build_dataset(attack_vocab, debug_mode):
 
 
 if __name__ == '__main__':
-    train_device = torch.device('cuda:1')
+    train_device = torch.device('cuda:2')
     dataset = 'SNLI'
-    baseline_model = 'BidLSTM_E'
+    baseline_model_name = 'Bert_E'
     search_bound = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
-    samples_num = [20, 100, 1000, 2000]
+    samples_num = [20, 100, 1000, 2000, 5000]
 
-    cur_dir = './output/gan_model/SNLI/BidLSTM_E/1615306213/models/epoch29/'  # gan_adv gan_gen Seq2Seq_model
-    output_dir = f'./texts/OUR/{dataset}/{baseline_model}'
+    cur_dir = './output/gan_model/SNLI/Bert_E/1615720613/models/epoch29/'  # gan_adv gan_gen Seq2Seq_model
+    output_dir = f'./texts/OUR/{dataset}/{baseline_model_name}'
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
 
     baseline_model_builder = BaselineModelBuilder(dataset,
-                                                  baseline_model,
+                                                  baseline_model_name,
                                                   train_device,
                                                   is_load=True)
 
