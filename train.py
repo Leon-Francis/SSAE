@@ -48,7 +48,7 @@ def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
                               adversary=gan_adv).argmax(dim=2)
     if AttackConfig.baseline_model == 'Bert':
         # perturb_x_mask: [batch, seq_len]
-        perturb_x_mask = torch.ones(perturb_x.shape, requires_grad=True)
+        perturb_x_mask = torch.ones(perturb_x.shape)
         with torch.no_grad():
             # mask before [SEP]
             for i in range(perturb_x.shape[0]):
@@ -57,8 +57,11 @@ def train_gan_a(train_data, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
                         perturb_x_mask[i][word_idx + 1:] = 0
                         break
         perturb_x_mask = perturb_x_mask.to(AttackConfig.train_device)
+        perturb_x_type = torch.zeros(perturb_x.shape).to(
+            AttackConfig.train_device)
         # perturb_logits: [batch, 4]
-        perturb_logits = baseline_model(perturb_x, perturb_x_mask)
+        perturb_logits = baseline_model(perturb_x, perturb_x_mask,
+                                        perturb_x_type)
     else:
         perturb_logits = baseline_model(perturb_x)
 
