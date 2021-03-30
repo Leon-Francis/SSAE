@@ -276,7 +276,7 @@ if __name__ == '__main__':
 
     Seq2Seq_model = Seq2Seq_bert(
         baseline_model_builder.vocab.num if baseline_model_builder.
-        vocab else AttackConfig.vocab_size).to(AttackConfig.train_device)
+        vocab else AttackConfig.vocab_size).to(train_device)
     Seq2Seq_model.load_state_dict(
         torch.load(cur_dir + 'Seq2Seq_model.pt', map_location=train_device))
 
