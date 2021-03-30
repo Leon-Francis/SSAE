@@ -157,11 +157,10 @@ if __name__ == '__main__':
 
     train_data, test_data = build_dataset(
         attack_vocab=baseline_model_builder.vocab)
-    if baseline_model_builder.vocab:
-        model = Seq2Seq_bert(baseline_model_builder.vocab.num).to(
-            AttackConfig.train_device)
-    else:
-        model = Seq2Seq_bert(AttackConfig.vocab_size).to(
+    model = Seq2Seq_bert(
+        baseline_model_builder.vocab.num
+        if baseline_model_builder.vocab else AttackConfig.vocab_size,
+        bidirectional=AttackConfig.Seq2Seq_BidLSTM).to(
             AttackConfig.train_device)
     if AttackConfig.train_multi_cuda:
         model = nn.DataParallel(model, device_ids=AttackConfig.multi_cuda_idx)
