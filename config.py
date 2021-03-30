@@ -15,9 +15,9 @@ class AttackConfig():
     train_device = torch.device('cuda:' + str(cuda_idx))
     dataset = 'IMDB'  # choices = 'IMDB', 'AGNEWS', 'SNLI', 'SST2'
     baseline_model = 'Bert'  # choices = 'LSTM', 'TextCNN', 'BidLSTM', 'Bert'
-    debug_mode = True
+    debug_mode = False
     epochs = 30
-    batch_size = 128
+    batch_size = 64
 
     load_pretrained_Seq2Seq = True
     Seq2Seq_BidLSTM = False

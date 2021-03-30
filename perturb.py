@@ -28,7 +28,10 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, dir,
                 z = gan_adv(c)
 
                 if AttackConfig.baseline_model == 'Bert':
-                    skiped = label != baseline_model(y, x_mask).argmax(dim=1)
+                    x_type = torch.zeros(y.shape, dtype=torch.int64).to(
+                        AttackConfig.train_device)
+                    skiped = label != baseline_model(y, x_type,
+                                                     x_mask).argmax(dim=1)
                 else:
                     skiped = label != baseline_model(y).argmax(dim=1)
                 for i in range(len(y)):
@@ -130,7 +133,7 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
         # pertub_x: [samples_num, seq_len]
         perturb_x = Seq2Seq_model.decode(perturb_hidden).argmax(dim=2)
         if AttackConfig.baseline_model == 'Bert':
-            perturb_x_mask = torch.ones(perturb_x.shape)
+            perturb_x_mask = torch.ones(perturb_x.shape, dtype=torch.int64)
             # mask before [SEP]
             for i in range(perturb_x.shape[0]):
                 for word_idx in range(perturb_x.shape[1]):
@@ -138,8 +141,11 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
                         perturb_x_mask[i][word_idx + 1:] = 0
                         break
             perturb_x_mask = perturb_x_mask.to(AttackConfig.train_device)
+            perturb_x_type = torch.zeros(perturb_x.shape,
+                                         dtype=torch.int64).to(
+                                             AttackConfig.train_device)
             # perturb_label: [samples_num]
-            perturb_label = baseline_model(perturb_x,
+            perturb_label = baseline_model(perturb_x, perturb_x_type,
                                            perturb_x_mask).argmax(dim=1)
         else:
             perturb_label = baseline_model(perturb_x).argmax(dim=1)
