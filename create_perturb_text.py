@@ -262,6 +262,6 @@ if __name__ == '__main__':
                          samples_num)
     logging(f'attack_acc={attack_acc}')
 
-    ppl, bert_score = calc_bert_score_ppl(cands_dir, refs_dir)
+    ppl, bert_score = calc_bert_score_ppl(cands_dir, refs_dir, train_device)
     logging(f'ppl={ppl}')
     logging(f'bert_score={bert_score}')
