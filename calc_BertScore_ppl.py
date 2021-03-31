@@ -6,10 +6,8 @@ from transformers import AutoModel, AutoTokenizer
 import numpy as np
 import math
 
-device = torch.device('cuda:3')
 
-
-def pre_bertscore():
+def pre_bertscore(device):
     tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
     model_type = lang2model['en']
     num_layers = model2layers[model_type]
@@ -31,7 +29,7 @@ def pre_bertscore():
     return model, tokenizer, idf_dict
 
 
-def get_bertscore(model, tokenizer, idf_dict, refs, cands):
+def get_bertscore(model, tokenizer, idf_dict, refs, cands, device):
     with torch.no_grad():
         all_preds = bert_cos_score_idf(model,
                                        refs,
@@ -48,7 +46,7 @@ def get_bertscore(model, tokenizer, idf_dict, refs, cands):
     return P, R, F1
 
 
-def pre_ppl():
+def pre_ppl(device):
     enc = GPT2Tokenizer.from_pretrained('gpt2')
     model = GPT2LMHeadModel.from_pretrained('gpt2')
     model.to(device)
@@ -56,7 +54,7 @@ def pre_ppl():
     return enc, model
 
 
-def get_ppl(enc, model, cands):
+def get_ppl(enc, model, cands, device):
     ppls = []
     with torch.no_grad():
         for s in cands:  # actually here is a batch with batchsize=1
@@ -70,15 +68,16 @@ def get_ppl(enc, model, cands):
     return ppls
 
 
-def calc_bert_score_ppl(cands_dir, refs_dir):
+def calc_bert_score_ppl(cands_dir, refs_dir, device):
     with open(cands_dir, encoding='utf8') as f:
         cands = [line.strip() for line in f]
     with open(refs_dir, encoding='utf8') as f:
         refs = [line.strip() for line in f]
-    ppl_enc, ppl_model = pre_ppl()
-    ppl = get_ppl(ppl_enc, ppl_model, cands)
-    bs_model, bs_tokenizer, bs_idf_dict = pre_bertscore()
-    P, R, F = get_bertscore(bs_model, bs_tokenizer, bs_idf_dict, refs, cands)
+    ppl_enc, ppl_model = pre_ppl(device)
+    ppl = get_ppl(ppl_enc, ppl_model, cands, device)
+    bs_model, bs_tokenizer, bs_idf_dict = pre_bertscore(device)
+    P, R, F = get_bertscore(bs_model, bs_tokenizer, bs_idf_dict, refs, cands,
+                            device)
     return np.mean(ppl), F.mean().item()
 
 

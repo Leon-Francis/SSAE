@@ -153,7 +153,8 @@ def perturb(data, tokenizer, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
                                     if perturb_x[0][stop - 1].item() != 102:
                                         break
                             f.write(' '.join(
-                                tokenizer.convert_ids_to_tokens(perturb_x[0][:stop])))
+                                tokenizer.convert_ids_to_tokens(
+                                    perturb_x[0][:stop])))
                             f.write('\n')
 
                     output_time += time.time()
@@ -264,8 +265,8 @@ if __name__ == '__main__':
     search_bound = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
     samples_num = [20, 100, 1000, 2000, 5000]
 
-    cur_dir = './output/gan_model/SNLI/Bert_E/1615720613/models/epoch29/'  # gan_adv gan_gen Seq2Seq_model
-    output_dir = f'./texts/OUR/{dataset}/{baseline_model_name}'
+    cur_dir = './output/gan_model/SNLI/Bert_E/1615780255/models/epoch29/'  # gan_adv gan_gen Seq2Seq_model
+    output_dir = f'./texts/OUR/{dataset}/{baseline_model_name}_load'
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
 
@@ -307,7 +308,8 @@ if __name__ == '__main__':
             logging(f'search_bound={bound}, sample={samples}')
             logging(f'attack_acc={attack_acc}')
 
-            ppl, bert_score = calc_bert_score_ppl(cands_dir, refs_dir)
+            ppl, bert_score = calc_bert_score_ppl(cands_dir, refs_dir,
+                                                  train_device)
             logging(f'ppl={ppl}')
             logging(f'bert_score={bert_score}')
             logging(f'gen_time={gen_time}')
