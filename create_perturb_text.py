@@ -125,9 +125,9 @@ def perturb(data, tokenizer, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
                             f.write('\n')
 
                     else:
-                        for stop in range(len(x_label[i]), 0, -1):
-                            if x_label[i][stop - 1].item() != 0:
-                                if x_label[i][stop - 1].item() != 2:
+                        for stop in range(len(y[i]), 0, -1):
+                            if y[i][stop - 1].item() != 0:
+                                if y[i][stop - 1].item() != 102:
                                     break
                         f_1.write(' '.join(
                             tokenizer.convert_ids_to_tokens(x_label[i][:stop]))
@@ -139,21 +139,21 @@ def perturb(data, tokenizer, Seq2Seq_model, gan_gen, gan_adv, baseline_model,
                                                   -1):
                                     if perturb_x_sample[stop - 1].item() != 0:
                                         if perturb_x_sample[stop -
-                                                            1].item() != 2:
+                                                            1].item() != 102:
                                             break
                                 f.write(' '.join(
                                     tokenizer.convert_ids_to_tokens(
-                                        perturb_x_sample)))
+                                        perturb_x_sample[:stop])))
                                 f.write('\n')
                                 attack_success_num += 1
                                 break
                         else:
                             for stop in range(len(perturb_x[0]), 0, -1):
                                 if perturb_x[0][stop - 1].item() != 0:
-                                    if perturb_x[0][stop - 1].item() != 2:
+                                    if perturb_x[0][stop - 1].item() != 102:
                                         break
                             f.write(' '.join(
-                                tokenizer.convert_ids_to_tokens(perturb_x[0])))
+                                tokenizer.convert_ids_to_tokens(perturb_x[0][:stop])))
                             f.write('\n')
 
                     output_time += time.time()
