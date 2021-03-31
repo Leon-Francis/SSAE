@@ -43,51 +43,51 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, cands_dir,
                         continue
 
                     attack_num += 1
-                    presearch_result = [False] * samples_num
 
-                    perturb_x, presearch_result = search_fast(
+                    perturb_x, successed_mask = search_fast(
                         Seq2Seq_model,
                         gan_gen,
                         baseline_model,
                         label[i],
                         z[i],
                         samples_num=samples_num,
-                        search_bound=search_bound,
-                        presearch_result=presearch_result)
+                        search_bound=search_bound)
 
                     if attack_vocab:
                         for stop in range(len(y[i]), 0, -1):
                             if y[i][stop - 1].item() != 0:
-                                break
+                                if y[i][stop - 1].item() != 2:
+                                    break
                         f_1.write(' '.join([
                             attack_vocab.get_word(token)
                             for token in y[i][:stop]
                         ]) + "\n")
 
-                        if not presearch_result[-1]:
+                        for n, perturb_x_sample in enumerate(perturb_x):
+                            if successed_mask[n].item():
+                                for stop in range(len(perturb_x_sample), 0,
+                                                  -1):
+                                    if perturb_x_sample[stop - 1].item() != 0:
+                                        if perturb_x_sample[stop -
+                                                            1].item() != 2:
+                                            break
+                                f.write(' '.join([
+                                    attack_vocab.get_word(token)
+                                    for token in perturb_x_sample[:stop]
+                                ]))
+                                f.write('\n')
+                                attack_success_num += 1
+                                break
+                        else:
                             for stop in range(len(perturb_x[0]), 0, -1):
                                 if perturb_x[0][stop - 1].item() != 0:
-                                    break
+                                    if perturb_x[0][stop - 1].item() != 2:
+                                        break
                             f.write(' '.join([
                                 attack_vocab.get_word(token)
                                 for token in perturb_x[0][:stop]
                             ]))
                             f.write('\n')
-                        else:
-                            for n, perturb_x_sample in enumerate(perturb_x):
-                                if presearch_result[n]:
-                                    for stop in range(len(perturb_x_sample), 0,
-                                                      -1):
-                                        if perturb_x_sample[stop -
-                                                            1].item() != 0:
-                                            break
-                                    f.write(' '.join([
-                                        attack_vocab.get_word(token)
-                                        for token in perturb_x_sample[:stop]
-                                    ]))
-                                    f.write('\n')
-                                    attack_success_num += 1
-                                    break
 
                     else:
                         for stop in range(len(y[i]), 0, -1):
@@ -98,36 +98,35 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, cands_dir,
                             tokenizer.convert_ids_to_tokens(y[i][:stop])) +
                                   "\n")
 
-                        if not presearch_result[-1]:
+                        for n, perturb_x_sample in enumerate(perturb_x):
+                            if successed_mask[n].item():
+                                for stop in range(len(perturb_x_sample), 0,
+                                                  -1):
+                                    if perturb_x_sample[stop - 1].item() != 0:
+                                        if perturb_x_sample[stop -
+                                                            1].item() != 102:
+                                            break
+                                f.write(' '.join(
+                                    tokenizer.convert_ids_to_tokens(
+                                        perturb_x_sample[:stop])))
+                                f.write('\n')
+                                attack_success_num += 1
+                                break
+                        else:
                             for stop in range(len(perturb_x[0]), 0, -1):
                                 if perturb_x[0][stop - 1].item() != 0:
                                     if perturb_x[0][stop - 1].item() != 102:
                                         break
                             f.write(' '.join(
-                                tokenizer.convert_ids_to_tokens(perturb_x[0])))
+                                tokenizer.convert_ids_to_tokens(
+                                    perturb_x[0][:stop])))
                             f.write('\n')
-                        else:
-                            for n, perturb_x_sample in enumerate(perturb_x):
-                                if presearch_result[n]:
-                                    for stop in range(len(perturb_x_sample), 0,
-                                                      -1):
-                                        if perturb_x_sample[stop -
-                                                            1].item() != 0:
-                                            if perturb_x_sample[
-                                                    stop - 1].item() != 102:
-                                                break
-                                    f.write(' '.join(
-                                        tokenizer.convert_ids_to_tokens(
-                                            perturb_x_sample[:stop])))
-                                    f.write('\n')
-                                    attack_success_num += 1
-                                    break
 
     return attack_success_num / attack_num
 
 
 def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
-                samples_num, search_bound, presearch_result):
+                samples_num, search_bound):
     # z: [sen_len, super_hidden_size]
     Seq2Seq_model.eval()
     generator.eval()
@@ -164,21 +163,15 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
             perturb_label = baseline_model(perturb_x).argmax(dim=1)
 
         successed_mask = perturb_label != label
-        for i in range(len(presearch_result)):
-            if not presearch_result[i]:
-                for t in range(i + 1):
-                    if successed_mask[t].item():
-                        presearch_result[i] = True
-                        break
 
         sorted_perturb_x = []
-        sorted_perturb_result = []
-        for _, x, y in sorted(zip(dist, perturb_x, presearch_result),
+        sorted_successed_mask = []
+        for _, x, y in sorted(zip(dist, perturb_x, successed_mask),
                               key=lambda pair: pair[0]):
             sorted_perturb_x.append(x)
-            sorted_perturb_result.append(y)
+            sorted_successed_mask.append(y)
 
-    return sorted_perturb_x, sorted_perturb_result
+    return sorted_perturb_x, sorted_successed_mask
 
 
 def build_dataset(attack_vocab):
