@@ -92,7 +92,8 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, cands_dir,
                     else:
                         for stop in range(len(y[i]), 0, -1):
                             if y[i][stop - 1].item() != 0:
-                                break
+                                if y[i][stop - 1].item() != 102:
+                                    break
                         f_1.write(' '.join(
                             tokenizer.convert_ids_to_tokens(y[i][:stop])) +
                                   "\n")
@@ -100,7 +101,8 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, cands_dir,
                         if not presearch_result[-1]:
                             for stop in range(len(perturb_x[0]), 0, -1):
                                 if perturb_x[0][stop - 1].item() != 0:
-                                    break
+                                    if perturb_x[0][stop - 1].item() != 102:
+                                        break
                             f.write(' '.join(
                                 tokenizer.convert_ids_to_tokens(perturb_x[0])))
                             f.write('\n')
@@ -111,10 +113,12 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, cands_dir,
                                                       -1):
                                         if perturb_x_sample[stop -
                                                             1].item() != 0:
-                                            break
+                                            if perturb_x_sample[
+                                                    stop - 1].item() != 102:
+                                                break
                                     f.write(' '.join(
                                         tokenizer.convert_ids_to_tokens(
-                                            perturb_x_sample)))
+                                            perturb_x_sample[:stop])))
                                     f.write('\n')
                                     attack_success_num += 1
                                     break
