@@ -42,7 +42,7 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, cands_dir,
 
                 val_time -= time.time()
 
-                if baseline_model == 'Bert':
+                if baseline_model_name == 'Bert':
                     x_type = torch.zeros(y.shape, dtype=torch.int64).to(
                         AttackConfig.train_device)
                     skiped = label != baseline_model(y, x_type,
@@ -160,23 +160,46 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
     baseline_model.eval()
     with torch.no_grad():
         g_t = time.time()
-
-        # search_z: [samples_num, sen_len, super_hidden_size]
-        search_z = z.repeat(samples_num, 1, 1)
-        delta = torch.FloatTensor(search_z.size()).uniform_(
-            -1 * search_bound, search_bound)
-        dist = np.array([np.sqrt(np.sum(x**2)) for x in delta.numpy()])
-        delta = delta.to(train_device)
-        search_z += delta
-        # pertub_hidden: [samples_num, sen_len, hidden_size]
-        perturb_hidden = generator(search_z)
-        # pertub_x: [samples_num, seq_len]
-        perturb_x = Seq2Seq_model.decode(perturb_hidden).argmax(dim=2)
+        dist = []
+        if samples_num > 100:
+            for i in range(int(samples_num / 100)):
+                # search_z: [samples_num, sen_len, super_hidden_size]
+                search_z = z.repeat(100, 1, 1)
+                delta = torch.FloatTensor(search_z.size()).uniform_(
+                    -1 * search_bound, search_bound)
+                dist = dist + [np.sqrt(np.sum(x**2)) for x in delta.numpy()]
+                delta = delta.to(train_device)
+                search_z += delta
+                # pertub_hidden: [samples_num, sen_len, hidden_size]
+                perturb_hidden = generator(search_z)
+                # pertub_x: [samples_num, seq_len]
+                if i == 0:
+                    perturb_x = Seq2Seq_model.decode(perturb_hidden).argmax(
+                        dim=2)
+                else:
+                    perturb_x = torch.cat(
+                        (perturb_x,
+                         Seq2Seq_model.decode(perturb_hidden).argmax(dim=2)),
+                        dim=0)
+            else:
+                dist = np.array(dist)
+        else:
+            # search_z: [samples_num, sen_len, super_hidden_size]
+            search_z = z.repeat(samples_num, 1, 1)
+            delta = torch.FloatTensor(search_z.size()).uniform_(
+                -1 * search_bound, search_bound)
+            dist = np.array([np.sqrt(np.sum(x**2)) for x in delta.numpy()])
+            delta = delta.to(train_device)
+            search_z += delta
+            # pertub_hidden: [samples_num, sen_len, hidden_size]
+            perturb_hidden = generator(search_z)
+            # pertub_x: [samples_num, seq_len]
+            perturb_x = Seq2Seq_model.decode(perturb_hidden).argmax(dim=2)
 
         g_t = time.time() - g_t
         t_t = time.time()
 
-        if baseline_model == 'Bert':
+        if baseline_model_name == 'Bert':
             perturb_x_mask = torch.ones(perturb_x.shape, dtype=torch.int64)
             # mask before [SEP]
             for i in range(perturb_x.shape[0]):
@@ -208,7 +231,7 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
     return sorted_perturb_x, sorted_successed_mask, g_t, t_t
 
 
-def build_dataset(attack_vocab):
+def build_dataset(attack_vocab, batch_size):
     if dataset == 'SNLI':
         train_dataset_orig = SNLI_Dataset(train_data=True,
                                           attack_vocab=attack_vocab,
@@ -240,11 +263,11 @@ def build_dataset(attack_vocab):
                                          attack_vocab=attack_vocab,
                                          debug_mode=True)
     train_data = DataLoader(train_dataset_orig,
-                            batch_size=AttackConfig.batch_size,
+                            batch_size=batch_size,
                             shuffle=True,
                             num_workers=4)
     test_data = DataLoader(test_dataset_orig,
-                           batch_size=AttackConfig.batch_size,
+                           batch_size=batch_size,
                            shuffle=False,
                            num_workers=4)
     return train_data, test_data
@@ -253,11 +276,11 @@ def build_dataset(attack_vocab):
 if __name__ == '__main__':
     train_device = torch.device('cuda:0')
     dataset = 'IMDB'
-    baseline_model_name = 'LSTM'
+    baseline_model_name = 'Bert'
     search_bound = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
     samples_num = [20, 100, 1000, 2000, 5000]
 
-    cur_dir = './output/gan_model/IMDB/LSTM/1615626018/models/epoch29/'  # gan_adv gan_gen Seq2Seq_model
+    cur_dir = './output/gan_model/IMDB/Bert/1617112995/models/epoch19/'  # gan_adv gan_gen Seq2Seq_model
     output_dir = f'./texts/OUR/{dataset}/{baseline_model_name}'
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
@@ -285,12 +308,12 @@ if __name__ == '__main__':
     gan_adv.load_state_dict(
         torch.load(cur_dir + 'gan_adv.pt', map_location=train_device))
 
-    _, test_data = build_dataset(baseline_model_builder.vocab)
+    _, test_data = build_dataset(baseline_model_builder.vocab, batch_size=64)
 
     for samples in samples_num:
         for bound in search_bound:
-            refs_dir = output_dir + f'/refs_{bound}_{samples}_epoch5.txt'
-            cands_dir = output_dir + f'/cands_{bound}_{samples}_epoch5.txt'
+            refs_dir = output_dir + f'/refs_{bound}_{samples}.txt'
+            cands_dir = output_dir + f'/cands_{bound}_{samples}.txt'
             attack_acc, gen_time, test_time, total_time, val_time, search_time, output_time = perturb(
                 test_data, Seq2Seq_model, gan_gen, gan_adv,
                 baseline_model_builder.net, cands_dir, refs_dir,
