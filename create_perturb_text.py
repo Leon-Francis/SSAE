@@ -42,7 +42,7 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, cands_dir,
 
                 val_time -= time.time()
 
-                if baseline_model == 'Bert':
+                if baseline_model_name == 'Bert':
                     x_type = torch.zeros(y.shape, dtype=torch.int64).to(
                         AttackConfig.train_device)
                     skiped = label != baseline_model(y, x_type,
@@ -176,7 +176,7 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
         g_t = time.time() - g_t
         t_t = time.time()
 
-        if baseline_model == 'Bert':
+        if baseline_model_name == 'Bert':
             perturb_x_mask = torch.ones(perturb_x.shape, dtype=torch.int64)
             # mask before [SEP]
             for i in range(perturb_x.shape[0]):
@@ -251,13 +251,13 @@ def build_dataset(attack_vocab):
 
 
 if __name__ == '__main__':
-    train_device = torch.device('cuda:0')
-    dataset = 'IMDB'
+    train_device = torch.device('cuda:1')
+    dataset = 'SST2'
     baseline_model_name = 'LSTM'
     search_bound = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
     samples_num = [20, 100, 1000, 2000, 5000]
 
-    cur_dir = './output/gan_model/IMDB/LSTM/1615626018/models/epoch29/'  # gan_adv gan_gen Seq2Seq_model
+    cur_dir = './output/gan_model/SST2/LSTM/1616592725/models/epoch29/'  # gan_adv gan_gen Seq2Seq_model
     output_dir = f'./texts/OUR/{dataset}/{baseline_model_name}'
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
@@ -289,8 +289,8 @@ if __name__ == '__main__':
 
     for samples in samples_num:
         for bound in search_bound:
-            refs_dir = output_dir + f'/refs_{bound}_{samples}_epoch5.txt'
-            cands_dir = output_dir + f'/cands_{bound}_{samples}_epoch5.txt'
+            refs_dir = output_dir + f'/refs_{bound}_{samples}.txt'
+            cands_dir = output_dir + f'/cands_{bound}_{samples}.txt'
             attack_acc, gen_time, test_time, total_time, val_time, search_time, output_time = perturb(
                 test_data, Seq2Seq_model, gan_gen, gan_adv,
                 baseline_model_builder.net, cands_dir, refs_dir,

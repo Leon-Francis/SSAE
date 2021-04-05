@@ -1,1 +1,1 @@
-nohup python create_perturb_text.py > calc_BertScore_ppl_IMDB_LSTM_0.log 2>&1 &
+nohup python create_perturb_text.py > calc_BertScore_ppl_SST2_LSTM_1.log 2>&1 &
