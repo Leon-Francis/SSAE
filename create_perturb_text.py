@@ -53,6 +53,8 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, cands_dir,
 
                 val_time += time.time()
 
+                y = y.to(torch.device('cpu'))
+
                 for i in range(len(y)):
                     if skiped[i].item():
                         continue
@@ -274,13 +276,13 @@ def build_dataset(attack_vocab, batch_size):
 
 
 if __name__ == '__main__':
-    train_device = torch.device('cuda:2')
-    dataset = 'IMDB'
-    baseline_model_name = 'Bert'
+    train_device = torch.device('cuda:1')
+    dataset = 'SST2'
+    baseline_model_name = 'LSTM'
     search_bound = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
     samples_num = [20, 100, 1000, 2000, 5000]
 
-    cur_dir = './output/gan_model/IMDB/Bert/1617112995/models/epoch19/'  # gan_adv gan_gen Seq2Seq_model
+    cur_dir = './output/gan_model/SST2/LSTM/1616592725/models/epoch29/'  # gan_adv gan_gen Seq2Seq_model
     output_dir = f'./texts/OUR/{dataset}/{baseline_model_name}'
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
@@ -308,7 +310,7 @@ if __name__ == '__main__':
     gan_adv.load_state_dict(
         torch.load(cur_dir + 'gan_adv.pt', map_location=train_device))
 
-    _, test_data = build_dataset(baseline_model_builder.vocab, batch_size=64)
+    _, test_data = build_dataset(baseline_model_builder.vocab, batch_size=128)
 
     for samples in samples_num:
         for bound in search_bound:
