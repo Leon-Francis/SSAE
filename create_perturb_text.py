@@ -32,8 +32,9 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, cands_dir,
             for x, x_mask, y, label in data:
                 x, x_mask, y, label = x.to(train_device), x_mask.to(
                     train_device), y.to(train_device), label.to(train_device)
-                gen_time -= time.time()
+
                 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+                gen_time -= time.time()
                 # c: [batch, sen_len, hidden_size]
                 c = Seq2Seq_model(x, x_mask, is_noise=False, encode_only=True)
                 # z: [batch, seq_len, super_hidden_size]
@@ -43,8 +44,8 @@ def perturb(data, Seq2Seq_model, gan_gen, gan_adv, baseline_model, cands_dir,
                 val_time -= time.time()
 
                 if baseline_model_name == 'Bert':
-                    x_type = torch.zeros(y.shape, dtype=torch.int64).to(
-                        AttackConfig.train_device)
+                    x_type = torch.zeros(y.shape,
+                                         dtype=torch.int64).to(train_device)
                     skiped = label != baseline_model(y, x_type,
                                                      x_mask).argmax(dim=1)
                 else:
@@ -209,8 +210,7 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
                         break
             perturb_x_mask = perturb_x_mask.to(train_device)
             perturb_x_type = torch.zeros(perturb_x.shape,
-                                         dtype=torch.int64).to(
-                                             AttackConfig.train_device)
+                                         dtype=torch.int64).to(train_device)
             # perturb_label: [samples_num]
             perturb_label = baseline_model(perturb_x, perturb_x_type,
                                            perturb_x_mask).argmax(dim=1)
@@ -274,7 +274,7 @@ def build_dataset(attack_vocab, batch_size):
 
 
 if __name__ == '__main__':
-    train_device = torch.device('cuda:0')
+    train_device = torch.device('cuda:2')
     dataset = 'IMDB'
     baseline_model_name = 'Bert'
     search_bound = [0, 0.1, 0.2, 0.3, 0.4, 0.5]

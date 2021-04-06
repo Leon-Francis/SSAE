@@ -58,13 +58,17 @@ def get_ppl(enc, model, cands, device):
     ppls = []
     with torch.no_grad():
         for s in cands:  # actually here is a batch with batchsize=1
-            s = enc.encode(s) + [50256
-                                 ]  # 50256 is the token_id for <|endoftext|>
-            batch = torch.tensor([s]).to(device)
+            try:
+                s = enc.encode(s) + [
+                    50256
+                ]  # 50256 is the token_id for <|endoftext|>
+                batch = torch.tensor([s]).to(device)
 
-            loss = model(batch, lm_labels=batch)  # everage -logp
+                loss = model(batch, lm_labels=batch)  # everage -logp
 
-            ppls.append(math.exp(loss.item()))  # the small, the better
+                ppls.append(math.exp(loss.item()))  # the small, the better
+            except KeyError:
+                continue
     return ppls
 
 
