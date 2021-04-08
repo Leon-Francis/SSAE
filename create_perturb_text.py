@@ -162,10 +162,12 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
     generator.eval()
     baseline_model.eval()
     with torch.no_grad():
-        g_t = time.time()
+        g_t = 0
+        t_t = 0
         dist = []
         if samples_num > 100:
-            for i in range(int(samples_num / 100)):
+            for num in range(int(samples_num / 100)):
+                g_t -= time.time()
                 # search_z: [samples_num, sen_len, super_hidden_size]
                 search_z = z.repeat(100, 1, 1)
                 delta = torch.FloatTensor(search_z.size()).uniform_(
@@ -176,17 +178,50 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
                 # pertub_hidden: [samples_num, sen_len, hidden_size]
                 perturb_hidden = generator(search_z)
                 # pertub_x: [samples_num, seq_len]
-                if i == 0:
-                    perturb_x = Seq2Seq_model.decode(perturb_hidden).argmax(
-                        dim=2)
+                perturb_x = Seq2Seq_model.decode(perturb_hidden).argmax(dim=2)
+                if num == 0:
+                    perturb_x_all = perturb_x
                 else:
-                    perturb_x = torch.cat(
-                        (perturb_x,
-                         Seq2Seq_model.decode(perturb_hidden).argmax(dim=2)),
-                        dim=0)
+                    perturb_x_all = torch.cat((perturb_x_all, perturb_x),
+                                              dim=0)
+
+                g_t += time.time()
+                t_t -= time.time()
+
+                if baseline_model_name == 'Bert':
+                    perturb_x_mask = torch.ones(perturb_x.shape,
+                                                dtype=torch.int64)
+                    # mask before [SEP]
+                    for i in range(perturb_x.shape[0]):
+                        for word_idx in range(perturb_x.shape[1]):
+                            if perturb_x[i][word_idx].item() == 102:
+                                perturb_x_mask[i][word_idx + 1:] = 0
+                                break
+                    perturb_x_mask = perturb_x_mask.to(train_device)
+                    perturb_x_type = torch.zeros(
+                        perturb_x.shape, dtype=torch.int64).to(train_device)
+                    # perturb_label: [samples_num]
+                    perturb_label = baseline_model(
+                        perturb_x, perturb_x_type,
+                        perturb_x_mask).argmax(dim=1)
+                    if num == 0:
+                        perturb_label_all = perturb_label
+                    else:
+                        perturb_label_all = torch.cat(
+                            (perturb_label_all, perturb_label), dim=0)
+                    t_t += time.time()
+                else:
+                    perturb_label = baseline_model(perturb_x).argmax(dim=1)
+                    if num == 0:
+                        perturb_label_all = perturb_label
+                    else:
+                        perturb_label_all = torch.cat(
+                            (perturb_label_all, perturb_label), dim=0)
+                    t_t += time.time()
             else:
                 dist = np.array(dist)
         else:
+            g_t -= time.time()
             # search_z: [samples_num, sen_len, super_hidden_size]
             search_z = z.repeat(samples_num, 1, 1)
             delta = torch.FloatTensor(search_z.size()).uniform_(
@@ -198,34 +233,36 @@ def search_fast(Seq2Seq_model, generator, baseline_model, label, z,
             perturb_hidden = generator(search_z)
             # pertub_x: [samples_num, seq_len]
             perturb_x = Seq2Seq_model.decode(perturb_hidden).argmax(dim=2)
+            g_t += time.time()
+            t_t -= time.time()
+            if baseline_model_name == 'Bert':
+                perturb_x_mask = torch.ones(perturb_x.shape, dtype=torch.int64)
+                # mask before [SEP]
+                for i in range(perturb_x.shape[0]):
+                    for word_idx in range(perturb_x.shape[1]):
+                        if perturb_x[i][word_idx].item() == 102:
+                            perturb_x_mask[i][word_idx + 1:] = 0
+                            break
+                perturb_x_mask = perturb_x_mask.to(train_device)
+                perturb_x_type = torch.zeros(
+                    perturb_x.shape, dtype=torch.int64).to(train_device)
+                # perturb_label: [samples_num]
+                perturb_label = baseline_model(perturb_x, perturb_x_type,
+                                               perturb_x_mask).argmax(dim=1)
+                t_t = time.time() - t_t
+            else:
+                perturb_label = baseline_model(perturb_x).argmax(dim=1)
+                t_t = time.time() - t_t
 
-        g_t = time.time() - g_t
-        t_t = time.time()
+            perturb_x_all = perturb_x
+            perturb_label_all = perturb_label
+            t_t += time.time()
 
-        if baseline_model_name == 'Bert':
-            perturb_x_mask = torch.ones(perturb_x.shape, dtype=torch.int64)
-            # mask before [SEP]
-            for i in range(perturb_x.shape[0]):
-                for word_idx in range(perturb_x.shape[1]):
-                    if perturb_x[i][word_idx].item() == 102:
-                        perturb_x_mask[i][word_idx + 1:] = 0
-                        break
-            perturb_x_mask = perturb_x_mask.to(train_device)
-            perturb_x_type = torch.zeros(perturb_x.shape,
-                                         dtype=torch.int64).to(train_device)
-            # perturb_label: [samples_num]
-            perturb_label = baseline_model(perturb_x, perturb_x_type,
-                                           perturb_x_mask).argmax(dim=1)
-            t_t = time.time() - t_t
-        else:
-            perturb_label = baseline_model(perturb_x).argmax(dim=1)
-            t_t = time.time() - t_t
-
-        successed_mask = perturb_label != label
+        successed_mask = perturb_label_all != label
 
         sorted_perturb_x = []
         sorted_successed_mask = []
-        for _, x, y in sorted(zip(dist, perturb_x, successed_mask),
+        for _, x, y in sorted(zip(dist, perturb_x_all, successed_mask),
                               key=lambda pair: pair[0]):
             sorted_perturb_x.append(x)
             sorted_successed_mask.append(y)
@@ -276,13 +313,13 @@ def build_dataset(attack_vocab, batch_size):
 
 
 if __name__ == '__main__':
-    train_device = torch.device('cuda:1')
-    dataset = 'SST2'
-    baseline_model_name = 'LSTM'
+    train_device = torch.device('cuda:3')
+    dataset = 'IMDB'
+    baseline_model_name = 'Bert'
     search_bound = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
-    samples_num = [20, 100, 1000, 2000, 5000]
+    samples_num = [2000, 5000]
 
-    cur_dir = './output/gan_model/SST2/LSTM/1616592725/models/epoch29/'  # gan_adv gan_gen Seq2Seq_model
+    cur_dir = './output/gan_model/IMDB/Bert/1617112995/models/epoch19/'  # gan_adv gan_gen Seq2Seq_model
     output_dir = f'./texts/OUR/{dataset}/{baseline_model_name}'
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
@@ -310,7 +347,7 @@ if __name__ == '__main__':
     gan_adv.load_state_dict(
         torch.load(cur_dir + 'gan_adv.pt', map_location=train_device))
 
-    _, test_data = build_dataset(baseline_model_builder.vocab, batch_size=128)
+    _, test_data = build_dataset(baseline_model_builder.vocab, batch_size=64)
 
     for samples in samples_num:
         for bound in search_bound:
